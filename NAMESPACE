@@ -1,0 +1,10 @@
+#useDynLib(SEMMS)
+exportPattern("^[[:alpha:]]+")
+importFrom(Rcpp, evalCpp)
+importFrom(Rcpp, sourceCpp)
+importFrom("graphics", "lines", "plot", "points", "text")
+importFrom("stats", "AIC", "cor", "dt", "formula", "glm", "lm",
+               "median", "na.omit", "p.adjust", "model.matrix")
+importFrom("utils", "read.table")
+importFrom("car","vif")
+importFrom("MASS","studres")

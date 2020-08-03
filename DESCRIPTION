@@ -1,0 +1,19 @@
+Package: SEMMS
+Type: Package
+Title: Variable selection in Generalized Linear Models - an empirical Bayes approach
+Version: 0.1.5
+Author: Haim Bar
+Maintainer: Haim Bar <haim.bar@uconn.edu>
+Imports: Rcpp (>= 1.0.5), RcppArmadillo
+LinkingTo: Rcpp, RcppArmadillo
+Depends: R (>= 3.6.0), car, MASS
+Suggests: knitr
+VignetteBuilder: knitr
+Description: We fit a three-component mixture model to the coefficients in the 
+    linear predictors in a GLM model (normal, Poisson, or bionmial response.)
+    We use an empirical Bayes approach to fit the model parameters. Fitting is
+    done via a Generalized Alternating Maximization algorithm. 
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
