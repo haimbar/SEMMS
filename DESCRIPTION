@@ -1,7 +1,7 @@
 Package: SEMMS
 Type: Package
 Title: Variable selection in Generalized Linear Models - an empirical Bayes approach
-Version: 0.1.5
+Version: 0.1.6
 Author: Haim Bar
 Maintainer: Haim Bar <haim.bar@uconn.edu>
 Imports: Rcpp (>= 1.0.5), RcppArmadillo

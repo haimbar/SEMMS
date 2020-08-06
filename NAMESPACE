@@ -1,4 +1,4 @@
-#useDynLib(SEMMS)
+useDynLib(SEMMS)
 exportPattern("^[[:alpha:]]+")
 importFrom(Rcpp, evalCpp)
 importFrom(Rcpp, sourceCpp)
