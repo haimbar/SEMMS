@@ -26,7 +26,7 @@ Run glm with the selected variables (identified by nnt) as predictors.
 }
 \examples{
 \dontrun{
-#' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
+fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
 dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
 fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
                         distribution="N",verbose=T,rnd=F)

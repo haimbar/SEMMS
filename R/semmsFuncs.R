@@ -94,7 +94,7 @@ fitSEMMS <- function(dat, mincor=0.7, nn=5, nnset=c(),
 #' @export
 #' @examples
 #' \dontrun{
-#' #' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
+#' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
 #' dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
 #' fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
 #'                         distribution="N",verbose=T,rnd=F)
@@ -152,7 +152,7 @@ runLinearModel <- function(dat, nnt, distr, func="glm") {
 #' @keywords parameter estimates
 #' @export
 #' @examples \dontrun{
-#' #' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
+#' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
 #' dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
 #' fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
 #'                         distribution="N",verbose=T,rnd=F)
@@ -240,7 +240,7 @@ mds2D <- function(dist1) {
 #' @export
 #' @examples
 #' \dontrun{
-#' #' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
+#' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
 #' dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
 #' fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
 #'                         distribution="N",verbose=T,rnd=F)
@@ -305,7 +305,7 @@ plotMDS <- function(dataYXZ, fittedSEMMS, fittedGLM, ttl="") {
 #' @export
 #' @examples
 #' \dontrun{
-#' #' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
+#' fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
 #' dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
 #' fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
 #'                         distribution="N",verbose=T,rnd=F)
