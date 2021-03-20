@@ -1,7 +1,7 @@
 ---
 title: "SEMMS"
 author: "Haim Bar"
-date: "2020/08/03"
+date: "2021/03/20"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{SEMMS}
@@ -15,17 +15,30 @@ This vignette provides code and sample output for some simulated data and case s
 
 ## Set-Up
 
-SEMMS is implemented in R and is available as a package from the following web-site:
-https://haim-bar.uconn.edu/software/ 
+SEMMS is implemented in R and is available as a package from github, https://github.com/haimbar/SEMMS
+<!--the following web-site:
+https://haim-bar.uconn.edu/software/ -->
 
-It requires R version 3.4.4 and up. It requires four packages to be pre-installed: Rcpp, RcppArmadillo, MASS, and car.
-To install SEMMS, download the latest version (currently SEMMS_0.1.5.tar.gz) and in the R console navigate to the directory where the file is saved, and run:
+SEMMS requires R version 3.6.0 and up. It requires five packages to be pre-installed: Rcpp, RcppArmadillo, MASS, car, and, as of version 0.2.0 it requires the edgefinder package, available from https://github.com/haimbar/edgefinder . It can be installed by using 
+```
+devtools::install_github("haimbar/edgefinder")
+```
+To install SEMMS, 
+```
+devtools::install_github("haimbar/SEMMS")
+```
+<!--download the latest version (currently SEMMS_0.1.5.tar.gz) and in the R console navigate to the directory where the file is saved, and run:
 
 ```
 install.packages("SEMMS_0.1.5.tar.gz", repos=NULL)
 ```
+-->
 
 To create files which SEMMS can use, please read the documentation of the function readInputFile.
+
+## Updates
+
+- Version 0.2.0 uses the edgefinder function in order to find highly correlated pairs of predictors. Then, it forms clusters of predictors and picks the central variable from each cluster to be included in the fitting process. Any variable not assigned to a cluster is also included in the model fitting. The excluded variables are shown by the plotMDS function, if they end up begin highly correlated with a significant predictor. By default, initWithEdgeFinder is set to TRUE. To pick the initial set of predictors manually, set this argument to FALSE, and use the nnset argument. 
 
 ## The Ozone data
 
@@ -49,11 +62,11 @@ library(SEMMS)
 # The ozone data, adding second order terms
 fn <- system.file("extdata", "ozone.txt", package = "SEMMS", mustWork = TRUE)
 dataYXZ <- readInputFile(fn, ycol=2, skip=19, Zcols=3:11,
-   addIntercept = TRUE, logTransform = 2, twoWay = TRUE)fn <- "ozone.dat"
+   addIntercept = TRUE, logTransform = 2, twoWay = TRUE)
 nn <- 20    # initial guess for the number of non-nulls
 distribution <- "gaussian"
 rnd <- F
-fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.75, nn=nn, minchange=1,
+fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.75, nn=nn, minchange=1, initWithEdgeFinder=F,
                         distribution="N",verbose=T,rnd=rnd)
 foundSEMMS <- sort(union(which(fittedSEMMS$gam.out$lockedOut != 0),
                          fittedSEMMS$gam.out$nn))
@@ -63,6 +76,14 @@ plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="Ozone Data")
 plotFit(fittedGLM)
 ```
 
+
+![Figure 1: A network representation of the selected model for the ozone data](./ozonemdscropped.png){ width=50% }
+
+
+![Figure 2: Goodness of fit plots for the fitted model, ozone data](./Greedyresiduals.jpg){ width=80% }
+
+The model with the variables depicted in Figure 1 fits well, as can be seen in Figure 2, and it explains 83.3% of the variability in the data. The adjusted R<SUP>2</SUP> is 82.5, and the AIC is 187 (Aikake, 1974), compared with 75% and 303, respectively, in (Lee et al., 2006)
+
 Notes about the code:
 
 1. In the readInputFile we used the option **twoWay=TRUE** to add all the second order terms.
@@ -70,27 +91,71 @@ Notes about the code:
 3. **plotMDS** was used to generate a graphical representation of the selected variables and the response as a network in Figure 1, and **plotFit** was used to generate the diagnostics plots in Figure 2.
 4. We get similar results if we do not log-transform the response, and use P (Poisson) instead of N (normal) in the distribution argument of **fitSEMMS**.
 5. Note that **addIntercept = TRUE** means that the original data does not contain an intercept, so SEMMS should add it before running the algorithm. FALSE means that the data already contains an intercept, and there is no need to add it.
-6. We used the option **nn=20** to start the algorithm with 20 putative predictors. SEMMS uses a simple criterion based on one predictor at a time analysis but, the user may provide a specific set of predictors for the initial iteration.  For example, to use variables 9, 45, and 54 we can use the **nnset** parameter, as follows:
+6. We used the option **initWithEdgeFinder=F**, which means that the algorithm did not use edgefinder to find highly correlated predictors. It used a simple threshold method. In general, setting **initWithEdgeFinder=T** is preferred, since it uses a method which allows to control the error rate when deciding which edges should be in the graph. When this argument is set to TRUE, the **mincor** argument is ignored.
+7. We used the option **nn=20** to start the algorithm with 20 putative predictors. SEMMS uses a simple criterion based on one predictor at a time analysis but, the user may provide a specific set of predictors for the initial iteration.  For example, to use variables 9, 45, and 54 we can use the **nnset** parameter, as follows:
     
 ```
 fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.75, nnset=c(9,45,54), minchange=1,
                         distribution="N",verbose=T,rnd=rnd)
 ```
- 
+
+One may also choose the initial set of variables using a different method, such as the lasso. The iterative nature of our Generalized Alternating Minimization (GAM) algorithm, it is guaranteed
+to do at least as well as the method used to initialize it because it yields a non-increasing Kullback-Leibler divergence. For example, using the ncvreg package, with the MCP penalty, we can do:
+
+```
+cv <- cv.ncvreg(dataYXZ$Z, dataYXZ$Y,family="gaussian", penalty="MCP")
+fit <- cv$fit
+beta <- fit$beta[,cv$min]
+nnset <- which(beta!=0)[-1] - 1
+fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.75, nnset=nnset, minchange=1,
+                        distribution="N",verbose=T,rnd=rnd)
+```
+
+This yields 16 variables in the nnset variable.
+
+Finally, we show the results when SEMMS with the edgefinder option set to TRUE: 
+```
+fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange  = 1,
+                        distribution="N",verbose=T,rnd=F)
+fittedGLM <- runLinearModel(dataYXZ,fittedSEMMS$gam.out$nn, "N")
+plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="Ozone data")
+```
+
+![Figure 3: A network representation of the selected model for the ozone data, using edgefinder to find highly correlated predictors.](./ozonewithedgefinder.png){ width=50% }
+
+We can obtain an ANOVA table for the final model, as follows. 
+
+```
+regressionTable <- summary(fittedGLM$mod)$coefficients
+zvars <- grep("Z\\d{4}",rownames(regressionTable),perl = T)
+rownames(regressionTable)[zvars] <- dataYXZ$originalZnames[fittedSEMMS$gam.out$nn]
+print(xtable(regressionTable), type="html")
+```
 
 
-![Figure 1: A network representation of the selected model for the ozone data](./ozonemdscropped.png){ width=50% }
-
-
-![Figure 2: Goodness of fit plots for the fitted model, ozone data](./Greedyresiduals.jpg){ width=80% }
+<!-- html table generated in R 4.0.4 by xtable 1.8-4 package -->
+<!-- Sat Mar 20 10:50:47 2021 -->
+<table border=1>
+<tr> <th>  </th> <th> Estimate </th> <th> Std. Error </th> <th> t value </th> <th> Pr(&gt;|t|) </th>  </tr>
+  <tr> <td align="right"> (Intercept) </td> <td align="right"> 2.21 </td> <td align="right"> 0.02 </td> <td align="right"> 114.88 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> vh </td> <td align="right"> 0.26 </td> <td align="right"> 0.03 </td> <td align="right"> 8.84 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> ibh </td> <td align="right"> -0.22 </td> <td align="right"> 0.03 </td> <td align="right"> -8.25 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> vis </td> <td align="right"> -0.09 </td> <td align="right"> 0.02 </td> <td align="right"> -4.09 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> doy </td> <td align="right"> -0.08 </td> <td align="right"> 0.02 </td> <td align="right"> -3.65 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> humid*dpg </td> <td align="right"> -0.19 </td> <td align="right"> 0.02 </td> <td align="right"> -7.61 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> ibh*dpg </td> <td align="right"> -0.16 </td> <td align="right"> 0.02 </td> <td align="right"> -7.18 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> doy*doy </td> <td align="right"> -0.28 </td> <td align="right"> 0.02 </td> <td align="right"> -12.52 </td> <td align="right"> 0.00 </td> </tr>
+   </table>
 
 The log(ozone) levels are a quadratic function of the day of the year. The maximum of this second degree polynomial with respect to doy corresponds approximately to June 20, very close to the spring solstice. This captures the seasonal effect, as it is well known that ozone levels are associated with the duration of daylight.
-The model with these variables fits well as can be seen in Figure 2, and it explains 83.3% of the variability in the data. The adjusted R<SUP>2</SUP> is 82.5, and the AIC is 187 (Aikake, 1974), compared with 75% and 303, respectively, in (Lee et al., 2006)
+
+
+   
 
 ## The NKI70 data
 
 The NKI70 data is available from the “penalized” package in R (Goeman, 2010). In (Bar, Booth, and Wells, 2019) we discuss how we used this data set to analyze which genes are associated with either death or recurrence of metastasis. Here, we show how to invoke SEMMS to perform the analysis, using the Poisson response, per (Whitehead, 1980).
-The selected model is shown graphically in Figure 3.
+The selected model is shown graphically in Figure 4.
 
 ```
 fn <- system.file("extdata", "NKI70_t1.RData", package = "SEMMS", mustWork = TRUE)
@@ -104,33 +169,49 @@ plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="NKI70")
 summary(fittedGLM$mod)
 ```
 
-![Figure 3: A network representation of the selected model for the NKI70 survival data](./NKI70cropped.png){ width=50% }
+![Figure 4: A network representation of the selected model for the NKI70 survival data](./NKI70cropped.png){ width=50% }
 
 The estimated coefficients for the selected model are as follows:
 
-```
-Coefficients:
-            Estimate Std. Error z value Pr(>|z|)    
-(Intercept) -2.80923    0.39912  -7.039 1.94e-12 ***
-Z0001       -0.36746    0.08802  -4.175 2.99e-05 ***
-Z0017       -0.34947    0.27479  -1.272  0.20345    
-Z0027       -0.78822    0.32698  -2.411  0.01593 *  
-Z0035       -0.56106    0.35955  -1.560  0.11865    
-Z0062        0.35915    0.16347   2.197  0.02801 *  
-Z0066        1.09086    0.37508   2.908  0.00363 ** 
-```
+<table border=1>
+<tr> <th>  </th> <th> Estimate </th> <th> Std. Error </th> <th> z value </th> <th> Pr(&gt;|z|) </th>  </tr>
+  <tr> <td align="right"> (Intercept) </td> <td align="right"> -2.81 </td> <td align="right"> 0.40 </td> <td align="right"> -7.04 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> log.t_i1. </td> <td align="right"> -0.37 </td> <td align="right"> 0.09 </td> <td align="right"> -4.17 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> SCUBE2 </td> <td align="right"> -0.35 </td> <td align="right"> 0.27 </td> <td align="right"> -1.27 </td> <td align="right"> 0.20 </td> </tr>
+  <tr> <td align="right"> KNTC2 </td> <td align="right"> -0.79 </td> <td align="right"> 0.33 </td> <td align="right"> -2.41 </td> <td align="right"> 0.02 </td> </tr>
+  <tr> <td align="right"> ZNF533 </td> <td align="right"> -0.56 </td> <td align="right"> 0.36 </td> <td align="right"> -1.56 </td> <td align="right"> 0.12 </td> </tr>
+  <tr> <td align="right"> IGFBP5.1 </td> <td align="right"> 0.36 </td> <td align="right"> 0.16 </td> <td align="right"> 2.20 </td> <td align="right"> 0.03 </td> </tr>
+  <tr> <td align="right"> PRC1 </td> <td align="right"> 1.09 </td> <td align="right"> 0.38 </td> <td align="right"> 2.91 </td> <td align="right"> 0.00 </td> </tr>
+   </table>
+   
 
 SEMMS allows the user to 'lock-in' variables. That is, to choose which variables *must*
 be included in the model. For example, if we want to include log.t_i1. and Age in the model,
-we invoke SEMMS by using the **Xcols** and **Zcols** paramaters, like this:
+we invoke SEMMS by using the **Xcols** and **Zcols** parameters, like this:
 
 ```
 dataYXZ <- readInputFile(file=fn, ycol=1, Xcols=2:3, Zcols=4:73)
 fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=6, minchange  = 1,
                         distribution="P", verbose=T, rnd=F)
+fittedGLM <- runLinearModel(dataYXZ,fittedSEMMS$gam.out$nn, "P")
+plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="NKI70")
+
+summary(fittedGLM$mod)
 ```
 
+The plotMDS function does not show locked-in predictors, but they are estimated by runLinearModel.
 
+<table border=1>
+<tr> <th>  </th> <th> Estimate </th> <th> Std. Error </th> <th> z value </th> <th> Pr(&gt;|z|) </th>  </tr>
+  <tr> <td align="right"> (Intercept) </td> <td align="right"> -2.77 </td> <td align="right"> 0.40 </td> <td align="right"> -7.00 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> log.t_i1. </td> <td align="right"> -0.38 </td> <td align="right"> 0.09 </td> <td align="right"> -4.28 </td> <td align="right"> 0.00 </td> </tr>
+  <tr> <td align="right"> Age </td> <td align="right"> -0.18 </td> <td align="right"> 0.19 </td> <td align="right"> -0.95 </td> <td align="right"> 0.34 </td> </tr>
+  <tr> <td align="right"> ZNF533 </td> <td align="right"> -0.72 </td> <td align="right"> 0.39 </td> <td align="right"> -1.85 </td> <td align="right"> 0.06 </td> </tr>
+  <tr> <td align="right"> COL4A2 </td> <td align="right"> 0.45 </td> <td align="right"> 0.20 </td> <td align="right"> 2.29 </td> <td align="right"> 0.02 </td> </tr>
+  <tr> <td align="right"> IGFBP5.1 </td> <td align="right"> 0.36 </td> <td align="right"> 0.17 </td> <td align="right"> 2.17 </td> <td align="right"> 0.03 </td> </tr>
+  <tr> <td align="right"> PRC1 </td> <td align="right"> 0.55 </td> <td align="right"> 0.28 </td> <td align="right"> 1.96 </td> <td align="right"> 0.05 </td> </tr>
+   </table>
+   
 ## Simulated Data – AR(1)
 
 The following example consists of 1,000 predictors, of which 20 are significant and are highly correlated. The model was denoted by N5 in (Bar, Booth, and Wells, 2019).
@@ -146,11 +227,10 @@ fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange  = 1,
 fittedGLM <- runLinearModel(dataYXZ,fittedSEMMS$gam.out$nn, "N")
 plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="AR1 simulation")
 ```
+In this case we used edgefinder to detect highly correlated pairs, and we find all the true predictors, and no false positives. In this example, if we do not use edgefinder, and rely on the **mincor=0.8** seting, SEMMS finds one false positive (v211) and 20 true positives. Figure 5 shows a graphical representation of the selected model. The red diamonds represent the variables which were selected by SEMMS, and the gold circles correspond to variables which are highly correlated with a selected predictor. This diagram, obtained from the plotMDS function in the SEMMS package clearly shows the AR(1) structure among the significant predictors.
 
-In this data set SEMMS finds one false positive (v211) and 20 true positives. Figure 4 shows a graphical representation of the selected model. The red diamonds represent the variables which were selected by SEMMS, and the gold circles correspond to variables which are highly correlated with a selected predictor. This diagram, obtained from the plotMDS function in the SEMMS package clearly shows the AR(1) structure among the significant predictors.
 
-
-![Figure 4: A network representation of the selected model for the simulated data (N5) where 20 predictors were drawn from a multivariate normal distribution with an autoregressive structure](./AR1SIM.png){ width=50% }
+![Figure 5: A network representation of the selected model for the simulated data (N5) where 20 predictors were drawn from a multivariate normal distribution with an autoregressive structure](./AR1SIMwithEdgeFinder.png){ width=50% }
 
 
 ## Simulated Data – Binary Response AR(1)
@@ -169,6 +249,9 @@ fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.7, nn=5, minchange  = 1,
 fittedGLM <- runLinearModel(dataYXZ,fittedSEMMS$gam.out$nn, "B")
 plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="Simulated Binomial (AR1)")
 ```
+
+![Figure 6: A network representation of the selected model for the simulated data (N5) where 20 predictors were drawn from a multivariate normal distribution with an autoregressive structure](./SimBinAR1withEdgeFinder.png){ width=50% }
+
 
 ## References
 

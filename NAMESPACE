@@ -8,3 +8,4 @@ importFrom("stats", "AIC", "cor", "dt", "formula", "glm", "lm",
 importFrom("utils", "read.table")
 importFrom("car","vif")
 importFrom("MASS","studres")
+importFrom("edgefinder","edgefinder", "graphComponents")

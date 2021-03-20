@@ -13,6 +13,7 @@
 #' @param distribution The distribution of the response (N, P, or B).
 #' @param rnd Whether to run the greedy (F, default) algorithm, or the randomized.
 #' @param BHthr The Benjamini-Hochberg threshold to be used when determining the initial set of non-null variables. Default=0.01.
+#' @param initWithEdgeFinder Determines whether to use the edgefinder package to find highly correlated pairs of predictors (default=TRUE).
 #' @param minchange The minimum change in the log-likelihood that is to be considered meaningful. Default=1.
 #' @param maxst The maximum number of iterations of the algorithm. Default=20.
 #' @param ptf Whether to print output at each iteration to a file called SEMMS.log. Default=FALSE.
@@ -34,26 +35,47 @@
 #' dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
 #' fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
 #'                         distribution="N",verbose=T,rnd=F)}
-fitSEMMS <- function(dat, mincor=0.7, nn=5, nnset=c(),
-                     distribution, rnd=F, BHthr = 0.01,
-                     minchange=1, maxst = 20, ptf=F, verbose=FALSE) {
-  if (verbose) { cat("Initializing...\n") }
+fitSEMMS <- function (dat, mincor = 0.7, nn = 5, nnset = c(), distribution,
+                      rnd = F, BHthr = 0.01, initWithEdgeFinder=T,
+                      minchange = 1, maxst = 20, ptf = F, verbose = FALSE) {
+  if (verbose) {
+    cat("Initializing...\n")
+  }
   y0 <- dat$Y
-  if (distribution == "B") { y0 <- log((dat$Y+0.5)/(1.5-dat$Y)) }
-  if (distribution == "P") { y0 <- log(dat$Y+0.1) }
+  if (distribution == "B") {
+    y0 <- log((dat$Y + 0.5)/(1.5 - dat$Y))
+  }
+  if (distribution == "P") {
+    y0 <- log(dat$Y + 0.1)
+  }
   y0 <- scale(y0)
+  if(initWithEdgeFinder) {
+    M <- t(cbind(y0, dat$Z))
+    effit <- edgefinder(M, BHthr = 1/choose(nrow(M),2), LOvals = 100)
+    subgr <- graphComponents(effit$AdjMat[-1,-1], minCtr = 2)
+    Zcols <- sort(c(which(subgr$clustNo == 0), which(subgr$iscenter ==1)))
+    dat0 <- dat
+    dat$Z <- dat0$Z[,Zcols]
+    dat$K <- length(Zcols)
+    dat$originalZnames <- dat0$originalZnames[Zcols]
+    dat$colnamesZ <- dat0$colnamesZ[Zcols]
+    if(length(which(effit$AdjMat[1,-1] != 0)) > 0)
+      nnset <- which(effit$AdjMat[1,-1] != 0)
+  }
   if (!is.null(nnset)) {
-    inits <- list(discard=rep(-1, dat$K),beta=rep(0, dat$K))
-    initsTmp <- initVals(as.matrix(dat$Z[,nnset], nrow=length(y0), ncol=length(nnset)),
-                         y0, mincor=mincor)
+    inits <- list(discard = rep(-1, dat$K), beta = rep(0, dat$K))
+    initsTmp <- initVals(as.matrix(dat$Z[, nnset], nrow = length(y0),
+                                   ncol = length(nnset)), y0, mincor = mincor)
     inits$discard[nnset] <- initsTmp$discard
     inits$beta[nnset] <- initsTmp$beta
     initNN <- nnset
-  } else {
-    inits <- initVals(dat$Z, y0, mincor=mincor)
+  }
+  else {
+    inits <- initVals(dat$Z, y0, mincor = mincor)
     slctord <- setdiff(rev(order(abs(inits$beta))), which(inits$discard >= 0))
-    pvals <- dt(inits$beta*sqrt(dat$N-2)/sqrt(1-inits$beta^2),dat$N-2)
-    bhadj <- p.adjust(pvals,"BH")
+    pvals <- dt(inits$beta * sqrt(dat$N - 2)/sqrt(1 - inits$beta^2),
+                dat$N - 2)
+    bhadj <- p.adjust(pvals, "BH")
     bhslct <- setdiff(which(bhadj < BHthr), which(inits$discard >= 0))
     if (length(bhslct) == 0) {
       warning("\nNo variables were significant at the chosen FDR level when initializing SEMMS!\n")
@@ -61,22 +83,37 @@ fitSEMMS <- function(dat, mincor=0.7, nn=5, nnset=c(),
     N0 <- max(nn, length(bhslct))
     if (rnd) {
       initNN <- slctord[sample(1:N0, nn)]
-    } else {
+    }
+    else {
       initNN <- slctord[1:nn]
     }
   }
   initNN <- na.omit(initNN)
-  gam <- rep(0,dat$K)
+  gam <- rep(0, dat$K)
   gam[initNN] <- sign(inits$beta[initNN])
-
-  if (verbose) { cat("Done!\nFitting...\n") }
-  gam.out <- GAMupdate(initNN-1, gam[initNN], as.matrix(dat$Y),
-                       as.matrix(dat$X), dat$Z, distr=distribution,
-                       randomize=rnd,minchange = minchange, mincor=mincor,
-                       ptf=ptf, maxsteps = maxst)
-  if (verbose) { cat("Done!\n") }
-  list(inits=inits, initNN=initNN, gam.out=gam.out, distribution=distribution,
-       mincor=mincor)
+  if (verbose) {
+    cat("Done!\nFitting...\n")
+  }
+  gam.out <- GAMupdate(initNN - 1, gam[initNN], as.matrix(dat$Y),
+                       as.matrix(dat$X), dat$Z, distr = distribution,
+                       randomize = rnd, minchange = minchange, mincor = mincor,
+                       ptf = ptf, maxsteps = maxst)
+  if(initWithEdgeFinder) {
+    if (length(gam.out$nn) > 0)
+      gam.out$nn <- Zcols[gam.out$nn]
+    gam.out$lockedOut <- rep(0, dat0$K)
+    A <- effit$AdjMat
+    A[1, gam.out$nn+1] <- A[gam.out$nn+1, 1] <- 1
+    lout <- setdiff(which((A + A%*%A)[1,] > 0), 1)
+    gam.out$lockedOut[setdiff(lout-1, gam.out$nn)] <- 1
+    inits$discard <- rep(-1, dat0$K)
+    gam.out$A <- effit$AdjMat
+  }
+  if (verbose) {
+    cat("Done!\n")
+  }
+  list(inits = inits, initNN = initNN, gam.out = gam.out,
+       distribution = distribution, mincor = mincor)
 }
 
 #' Run the linear model using the selected variables
@@ -246,52 +283,65 @@ mds2D <- function(dist1) {
 #'                         distribution="N",verbose=T,rnd=F)
 #' fittedGLM <- runLinearModel(dataYXZ,fittedSEMMS$gam.out$nn, "N")
 #' plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="AR1 simulation")}
-plotMDS <- function(dataYXZ, fittedSEMMS, fittedGLM, ttl="") {
+plotMDS <- function (dataYXZ, fittedSEMMS, fittedGLM, ttl = "")  {
   nns <- fittedSEMMS$gam.out$nn
   nnl <- which(fittedSEMMS$gam.out$lockedOut > 0)
-  lnk <- fittedSEMMS$inits$discard
-  sset <- which(lnk %in% union(nns,nnl))
-  sset <- unique(sort(c(nns, nnl,
-                        fittedSEMMS$inits$discard[nnl]+1,
-                        fittedSEMMS$inits$discard[nns]+1)))
-  sset <- setdiff(sset,0)
-  if (length(sset) <= 1) # don't plot if just one predictor is found
+  sset <- unique(sort(c(nns, nnl, fittedSEMMS$inits$discard[nnl] + 1,
+                        fittedSEMMS$inits$discard[nns] + 1)))
+  if (!is.null(fittedSEMMS$gam.out$A)) {
+    sset <- sort(union(fittedSEMMS$gam.out$nn,
+                       which(fittedSEMMS$gam.out$lockedOut > 0)))
+  }
+  sset <- setdiff(sset, 0)
+  if (length(sset) <= 1)
     return(NULL)
-  Zs <- cbind(scale(dataYXZ$Y), dataYXZ$Z[,sort(sset)])
+  Zs <- cbind(scale(dataYXZ$Y), dataYXZ$Z[, sort(sset)])
   colnames(Zs) <- c("Y", dataYXZ$colnamesZ[sort(sset)])
-  crdist <- 1-abs(cor(Zs))
+  crdist <- 1 - abs(cor(Zs))
   mdsdat <- mds2D(crdist)
-  D <- max(mdsdat$conf[,1]) - min(mdsdat$conf[,1])
-  plot(mdsdat$conf, axes=F, pch=19, col=0, xlab="", ylab="", cex=0.6,
-       xlim=c(min(mdsdat$conf[,1])-D/5,  max(mdsdat$conf[,1])),
-       main=paste(ttl,format(fittedGLM$aic,digits=1)))
+  D <- max(mdsdat$conf[, 1]) - min(mdsdat$conf[, 1])
+  plot(mdsdat$conf, axes = F, pch = 19, col = 0, xlab = "",
+       ylab = "", cex = 0.6, xlim = c(min(mdsdat$conf[, 1]) - D/5,
+                                      max(mdsdat$conf[, 1])), main=ttl)
   nnspts <- which(rownames(mdsdat$conf) %in% dataYXZ$colnamesZ[nns])
-  A <- ceiling(pmax(1-crdist-fittedSEMMS$mincor^2))
-  diag(A) <- 0
   mod <- which(colnames(Zs) %in% dataYXZ$colnamesZ[nns])
-  A[1,mod] <- A[mod,1] <- 1
-  for (i in 1:(nrow(A)-1)) {
-    for(j in (i+1):nrow(A)) {
-      if (A[i,j] == 1) {
-        lines(c(mdsdat$conf[i,1], mdsdat$conf[j,1]),
-              c(mdsdat$conf[i,2], mdsdat$conf[j,2]),
-              col=ifelse((i==1) & (j%in%mod),"navyblue","gray"),
-              lwd=ifelse((i==1) & (j%in%mod),2,1))
+  if (!is.null(fittedSEMMS$gam.out$A)) {
+    A <- fittedSEMMS$gam.out$A[c(1,1+sset),c(1,1+sset)]
+  } else {
+    A <- ceiling(pmax(1 - crdist - fittedSEMMS$mincor^2))
+    diag(A) <- 0
+    A[1, mod] <- A[mod, 1] <- 1
+  }
+  for (i in 1:(nrow(A) - 1)) {
+    for (j in (i + 1):nrow(A)) {
+      if (A[i, j] == 1) {
+        col <- "navyblue"
+        wid <- 2
+        if ((i != 1) | !(j %in% mod)) {
+          col <- "gray"
+          wid <- 1
+        }
+        lines(c(mdsdat$conf[i, 1], mdsdat$conf[j, 1]),
+              c(mdsdat$conf[i, 2], mdsdat$conf[j, 2]),  col = col, lwd = wid)
       }
     }
   }
-  for (j in 1:length(nnspts))
-    lines(c(mdsdat$conf[1,1], mdsdat$conf[nnspts[j],1]),
-          c(mdsdat$conf[1,2], mdsdat$conf[nnspts[j],2]),
-          col="navyblue",lwd=2)
-  points(mdsdat$conf[nnspts,1],mdsdat$conf[nnspts,2],col="red",pch=18,cex=1.5)
-  points(mdsdat$conf[-c(1,nnspts),1],mdsdat$conf[-c(1,nnspts),2],col="orange",pch=19,cex=0.7)
-  points(mdsdat$conf[nnspts,1],mdsdat$conf[nnspts,2],col="red",pch=18,cex=1.5)
-  text(mdsdat$conf[1,1],mdsdat$conf[1,2],"Y",col="red",cex=1.5)
-  text(mdsdat$conf[nnspts,1],mdsdat$conf[nnspts,2],dataYXZ$originalZnames[nns],pos=2,col=2,cex=0.7)
-  text((mdsdat$conf[nnspts,1]+mdsdat$conf[1,1])/2,
-       (mdsdat$conf[nnspts,2]+mdsdat$conf[1,2])/2,
-       format(fittedGLM$mod$coefficients[-1],digits = 2),col=2,cex=0.7)
+  for (j in 1:length(nnspts)) lines(c(mdsdat$conf[1, 1], mdsdat$conf[nnspts[j], 1]),
+                                    c(mdsdat$conf[1, 2], mdsdat$conf[nnspts[j], 2]),
+                                    col = "navyblue", lwd = 2)
+  points(mdsdat$conf[nnspts, 1], mdsdat$conf[nnspts, 2], col = "red",
+         pch = 18, cex = 1.5)
+  points(mdsdat$conf[-c(1, nnspts), 1], mdsdat$conf[-c(1, nnspts), 2],
+         col = "orange", pch = 19, cex = 0.7)
+  points(mdsdat$conf[nnspts, 1], mdsdat$conf[nnspts, 2], col = "red",
+         pch = 18, cex = 1.5)
+  text(mdsdat$conf[1, 1], mdsdat$conf[1, 2], "Y", col = "red",
+       cex = 1.5)
+  text(mdsdat$conf[nnspts, 1], mdsdat$conf[nnspts, 2], dataYXZ$originalZnames[nns],
+       pos = 2, col = 2, cex = 0.7)
+  text((mdsdat$conf[nnspts, 1] + mdsdat$conf[1, 1])/2,
+       (mdsdat$conf[nnspts, 2] + mdsdat$conf[1, 2])/2,
+       format(fittedGLM$mod$coefficients[-1], digits = 2), col = 2, cex = 0.7)
 }
 
 

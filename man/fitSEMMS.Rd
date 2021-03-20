@@ -13,6 +13,7 @@ fitSEMMS(
   distribution,
   rnd = F,
   BHthr = 0.01,
+  initWithEdgeFinder = T,
   minchange = 1,
   maxst = 20,
   ptf = F,
@@ -33,6 +34,8 @@ fitSEMMS(
 \item{rnd}{Whether to run the greedy (F, default) algorithm, or the randomized.}
 
 \item{BHthr}{The Benjamini-Hochberg threshold to be used when determining the initial set of non-null variables. Default=0.01.}
+
+\item{initWithEdgeFinder}{Determines whether to use the edgefinder package to find highly correlated pairs of predictors (default=TRUE).}
 
 \item{minchange}{The minimum change in the log-likelihood that is to be considered meaningful. Default=1.}
 
