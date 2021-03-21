@@ -53,7 +53,7 @@ nn=the selected variables, mu,beta,s2r,s2e=the parameter estimates of the mixtur
 gam_nn=the sign (+/-1) of the effect of the non-null variables, pp=a table of posterior probabilities,
 and lockedOut=any variables found to be highly correlated with selected variables.}
 \item{distribution}{The distribution selected by the user.}
-\item{mincor}{The user's input for micor above.}
+\item{mincor}{The user's input for mincor above. Ignored if initWithEdgeFinder is set to TRUE}
 }
 \description{
 Coefficients of predictors in a GLM are modeled as a three-component normal
