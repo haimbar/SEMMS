@@ -27,7 +27,7 @@ fitSEMMS(
 
 \item{nn}{The initial value for the number of non-null variables. Default is 5.}
 
-\item{nnset}{Optional: instead of an initial number of candidates, can suggest specific column number in the Z matrix. Default is null.}
+\item{nnset}{Optional: instead of an initial number of candidates, can specify the column numbers in the Z matrix for the first iteration. Default is null.}
 
 \item{distribution}{The distribution of the response (N, P, or B).}
 
