@@ -1,13 +1,13 @@
 Package: SEMMS
 Type: Package
 Title: Variable selection in Generalized Linear Models - an empirical Bayes approach
-Version: 0.2.2
+Version: 0.2.4
 Author: Haim Bar
 Maintainer: Haim Bar <haim.bar@uconn.edu>
 Imports: Rcpp (>= 1.0.5), RcppArmadillo
 LinkingTo: Rcpp, RcppArmadillo
 Depends: R (>= 3.6.0), car, MASS, edgefinder
-Suggests: knitr
+Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 Description: We fit a three-component mixture model to the coefficients in the 
     linear predictors in a GLM model (normal, Poisson, or bionmial response.)

@@ -9,7 +9,7 @@ fitSEMMS(
   dat,
   mincor = 0.7,
   nn = 5,
-  nnset = c(),
+  nnset = NULL,
   distribution,
   rnd = F,
   BHthr = 0.01,

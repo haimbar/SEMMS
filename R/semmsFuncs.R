@@ -35,7 +35,7 @@
 #' dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
 #' fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
 #'                         distribution="N",verbose=T,rnd=F)}
-fitSEMMS <- function (dat, mincor = 0.7, nn = 5, nnset = c(), distribution,
+fitSEMMS <- function (dat, mincor = 0.7, nn = 5, nnset = NULL, distribution,
                       rnd = F, BHthr = 0.01, initWithEdgeFinder=T,
                       minchange = 1, maxst = 20, ptf = F, verbose = FALSE) {
   if (verbose) {
@@ -51,21 +51,21 @@ fitSEMMS <- function (dat, mincor = 0.7, nn = 5, nnset = c(), distribution,
   y0 <- scale(y0)
   if(initWithEdgeFinder) {
     M <- t(cbind(y0, dat$Z))
-    effit <- edgefinder(M, BHthr = 1/choose(nrow(M),2), LOvals = 100)
+    effit <- edgefinder(M, BHthr = max(1e-6, 1/choose(nrow(M),2)), LOvals = 100)
     subgr <- graphComponents(effit$AdjMat[-1,-1], minCtr = 2)
     Zcols <- sort(c(which(subgr$clustNo == 0), which(subgr$iscenter ==1)))
+    if (!is.null(nnset)) {
+      Zcols <- sort(union(nnset, Zcols))
+      nnset <- which(Zcols %in% nnset)
+    } else {
+      if(length(which(effit$AdjMat[1,-1] != 0) > 0))
+        nnset <- which(effit$AdjMat[1,-1] != 0)[Zcols]
+    }
     dat0 <- dat
     dat$Z <- dat0$Z[,Zcols]
     dat$K <- length(Zcols)
     dat$originalZnames <- dat0$originalZnames[Zcols]
     dat$colnamesZ <- dat0$colnamesZ[Zcols]
-    if(is.null(nnset))
-      nnset <- which(effit$AdjMat[1,-1] != 0)
-    if(length(nnset) > 0) {
-      nns <- rep(0, dat$K)
-      nns[nnset] <- 1
-      nnset <- which(nns[Zcols] == 1)
-    }
   }
   if (!is.null(nnset)) {
     inits <- list(discard = rep(-1, dat$K), beta = rep(0, dat$K))
@@ -74,8 +74,7 @@ fitSEMMS <- function (dat, mincor = 0.7, nn = 5, nnset = c(), distribution,
     inits$discard[nnset] <- initsTmp$discard
     inits$beta[nnset] <- initsTmp$beta
     initNN <- nnset
-  }
-  else {
+  } else {
     inits <- initVals(dat$Z, y0, mincor = mincor)
     slctord <- setdiff(rev(order(abs(inits$beta))), which(inits$discard >= 0))
     pvals <- dt(inits$beta * sqrt(dat$N - 2)/sqrt(1 - inits$beta^2),
@@ -104,11 +103,12 @@ fitSEMMS <- function (dat, mincor = 0.7, nn = 5, nnset = c(), distribution,
                        randomize = rnd, minchange = minchange, mincor = mincor,
                        ptf = ptf, maxsteps = maxst)
   if(initWithEdgeFinder) {
-    if (length(gam.out$nn) > 0)
-      gam.out$nn <- Zcols[gam.out$nn]
-    gam.out$lockedOut <- rep(0, dat0$K)
     A <- effit$AdjMat
-    A[1, gam.out$nn+1] <- A[gam.out$nn+1, 1] <- 1
+    if (length(gam.out$nn) > 0){
+      gam.out$nn <- Zcols[gam.out$nn]
+      A[1, gam.out$nn+1] <- A[gam.out$nn+1, 1] <- 1
+    }
+    gam.out$lockedOut <- rep(0, dat0$K)
     lout <- setdiff(which((A + A%*%A)[1,] > 0), 1)
     gam.out$lockedOut[setdiff(lout-1, gam.out$nn)] <- 1
     inits$discard <- rep(-1, dat0$K)
