@@ -59,7 +59,7 @@ fitSEMMS <- function (dat, mincor = 0.7, nn = 5, nnset = NULL, distribution,
       nnset <- which(Zcols %in% nnset)
     } else {
       if(length(which(effit$AdjMat[1,-1] != 0) > 0))
-        nnset <- which(effit$AdjMat[1,-1] != 0)[Zcols]
+        nnset <- which(effit$AdjMat[1,-1] != 0)
     }
     dat0 <- dat
     dat$Z <- dat0$Z[,Zcols]
