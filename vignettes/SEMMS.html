@@ -418,161 +418,74 @@ correlated predictors.</div>
 zvars &lt;- grep(&quot;Z\\d{4}&quot;,rownames(regressionTable),perl = T)
 rownames(regressionTable)[zvars] &lt;- dataYXZ$originalZnames[fittedSEMMS$gam.out$nn]
 print(xtable(regressionTable), type=&quot;html&quot;)</code></pre>
-<!-- html table generated in R 4.0.4 by xtable 1.8-4 package -->
-<!-- Sat Mar 20 10:50:47 2021 -->
-<table border="1">
-<tr>
-<th>
-</th>
-<th>
-Estimate
-</th>
-<th>
-Std. Error
-</th>
-<th>
-t value
-</th>
-<th>
-Pr(&gt;|t|)
-</th>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">t value</th>
+<th align="right">Pr(&gt;|t|)</th>
 </tr>
-<tr>
-<td align="right">
-(Intercept)
-</td>
-<td align="right">
-2.21
-</td>
-<td align="right">
-0.02
-</td>
-<td align="right">
-114.88
-</td>
-<td align="right">
-0.00
-</td>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">2.21</td>
+<td align="right">0.02</td>
+<td align="right">114.88</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-vh
-</td>
-<td align="right">
-0.26
-</td>
-<td align="right">
-0.03
-</td>
-<td align="right">
-8.84
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="even">
+<td>vh</td>
+<td align="right">0.26</td>
+<td align="right">0.03</td>
+<td align="right">8.84</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-ibh
-</td>
-<td align="right">
--0.22
-</td>
-<td align="right">
-0.03
-</td>
-<td align="right">
--8.25
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="odd">
+<td>ibh</td>
+<td align="right">-0.22</td>
+<td align="right">0.03</td>
+<td align="right">-8.25</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-vis
-</td>
-<td align="right">
--0.09
-</td>
-<td align="right">
-0.02
-</td>
-<td align="right">
--4.09
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="even">
+<td>vis</td>
+<td align="right">-0.09</td>
+<td align="right">0.02</td>
+<td align="right">-4.09</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-doy
-</td>
-<td align="right">
--0.08
-</td>
-<td align="right">
-0.02
-</td>
-<td align="right">
--3.65
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="odd">
+<td>doy</td>
+<td align="right">-0.08</td>
+<td align="right">0.02</td>
+<td align="right">-3.65</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-humid*dpg
-</td>
-<td align="right">
--0.19
-</td>
-<td align="right">
-0.02
-</td>
-<td align="right">
--7.61
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="even">
+<td>humid*dpg</td>
+<td align="right">-0.19</td>
+<td align="right">0.02</td>
+<td align="right">-7.61</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-ibh*dpg
-</td>
-<td align="right">
--0.16
-</td>
-<td align="right">
-0.02
-</td>
-<td align="right">
--7.18
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="odd">
+<td>ibh*dpg</td>
+<td align="right">-0.16</td>
+<td align="right">0.02</td>
+<td align="right">-7.18</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-doy*doy
-</td>
-<td align="right">
--0.28
-</td>
-<td align="right">
-0.02
-</td>
-<td align="right">
--12.52
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="even">
+<td>doy*doy</td>
+<td align="right">-0.28</td>
+<td align="right">0.02</td>
+<td align="right">-12.52</td>
+<td align="right">0.00</td>
 </tr>
+</tbody>
 </table>
 <p>The log(ozone) levels are a quadratic function of the day of the
 year. The maximum of this second degree polynomial with respect to doy
@@ -603,142 +516,67 @@ summary(fittedGLM$mod)</code></pre>
 selected model for the NKI70 survival data</div>
 </div>
 <p>The estimated coefficients for the selected model are as follows:</p>
-<table border="1">
-<tr>
-<th>
-</th>
-<th>
-Estimate
-</th>
-<th>
-Std. Error
-</th>
-<th>
-z value
-</th>
-<th>
-Pr(&gt;|z|)
-</th>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">z value</th>
+<th align="right">Pr(&gt;|z|)</th>
 </tr>
-<tr>
-<td align="right">
-(Intercept)
-</td>
-<td align="right">
--2.81
-</td>
-<td align="right">
-0.40
-</td>
-<td align="right">
--7.04
-</td>
-<td align="right">
-0.00
-</td>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">-2.81</td>
+<td align="right">0.40</td>
+<td align="right">-7.04</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-log.t_i1.
-</td>
-<td align="right">
--0.37
-</td>
-<td align="right">
-0.09
-</td>
-<td align="right">
--4.17
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="even">
+<td>log.t_i1.</td>
+<td align="right">-0.37</td>
+<td align="right">0.09</td>
+<td align="right">-4.17</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-SCUBE2
-</td>
-<td align="right">
--0.35
-</td>
-<td align="right">
-0.27
-</td>
-<td align="right">
--1.27
-</td>
-<td align="right">
-0.20
-</td>
+<tr class="odd">
+<td>SCUBE2</td>
+<td align="right">-0.35</td>
+<td align="right">0.27</td>
+<td align="right">-1.27</td>
+<td align="right">0.20</td>
 </tr>
-<tr>
-<td align="right">
-KNTC2
-</td>
-<td align="right">
--0.79
-</td>
-<td align="right">
-0.33
-</td>
-<td align="right">
--2.41
-</td>
-<td align="right">
-0.02
-</td>
+<tr class="even">
+<td>KNTC2</td>
+<td align="right">-0.79</td>
+<td align="right">0.33</td>
+<td align="right">-2.41</td>
+<td align="right">0.02</td>
 </tr>
-<tr>
-<td align="right">
-ZNF533
-</td>
-<td align="right">
--0.56
-</td>
-<td align="right">
-0.36
-</td>
-<td align="right">
--1.56
-</td>
-<td align="right">
-0.12
-</td>
+<tr class="odd">
+<td>ZNF533</td>
+<td align="right">-0.56</td>
+<td align="right">0.36</td>
+<td align="right">-1.56</td>
+<td align="right">0.12</td>
 </tr>
-<tr>
-<td align="right">
-IGFBP5.1
-</td>
-<td align="right">
-0.36
-</td>
-<td align="right">
-0.16
-</td>
-<td align="right">
-2.20
-</td>
-<td align="right">
-0.03
-</td>
+<tr class="even">
+<td>IGFBP5.1</td>
+<td align="right">0.36</td>
+<td align="right">0.16</td>
+<td align="right">2.20</td>
+<td align="right">0.03</td>
 </tr>
-<tr>
-<td align="right">
-PRC1
-</td>
-<td align="right">
-1.09
-</td>
-<td align="right">
-0.38
-</td>
-<td align="right">
-2.91
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="odd">
+<td>PRC1</td>
+<td align="right">1.09</td>
+<td align="right">0.38</td>
+<td align="right">2.91</td>
+<td align="right">0.00</td>
 </tr>
+</tbody>
 </table>
 <p>SEMMS allows the user to ‘lock-in’ variables. That is, to choose
 which variables <em>must</em> be included in the model. For example, if
@@ -754,142 +592,67 @@ plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl=&quot;NKI70&quot;)
 summary(fittedGLM$mod)</code></pre>
 <p>The plotMDS function does not show locked-in predictors, but they are
 estimated by runLinearModel.</p>
-<table border="1">
-<tr>
-<th>
-</th>
-<th>
-Estimate
-</th>
-<th>
-Std. Error
-</th>
-<th>
-z value
-</th>
-<th>
-Pr(&gt;|z|)
-</th>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">z value</th>
+<th align="right">Pr(&gt;|z|)</th>
 </tr>
-<tr>
-<td align="right">
-(Intercept)
-</td>
-<td align="right">
--2.77
-</td>
-<td align="right">
-0.40
-</td>
-<td align="right">
--7.00
-</td>
-<td align="right">
-0.00
-</td>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">-2.77</td>
+<td align="right">0.40</td>
+<td align="right">-7.00</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-log.t_i1.
-</td>
-<td align="right">
--0.38
-</td>
-<td align="right">
-0.09
-</td>
-<td align="right">
--4.28
-</td>
-<td align="right">
-0.00
-</td>
+<tr class="even">
+<td>log.t_i1.</td>
+<td align="right">-0.38</td>
+<td align="right">0.09</td>
+<td align="right">-4.28</td>
+<td align="right">0.00</td>
 </tr>
-<tr>
-<td align="right">
-Age
-</td>
-<td align="right">
--0.18
-</td>
-<td align="right">
-0.19
-</td>
-<td align="right">
--0.95
-</td>
-<td align="right">
-0.34
-</td>
+<tr class="odd">
+<td>Age</td>
+<td align="right">-0.18</td>
+<td align="right">0.19</td>
+<td align="right">-0.95</td>
+<td align="right">0.34</td>
 </tr>
-<tr>
-<td align="right">
-ZNF533
-</td>
-<td align="right">
--0.72
-</td>
-<td align="right">
-0.39
-</td>
-<td align="right">
--1.85
-</td>
-<td align="right">
-0.06
-</td>
+<tr class="even">
+<td>ZNF533</td>
+<td align="right">-0.72</td>
+<td align="right">0.39</td>
+<td align="right">-1.85</td>
+<td align="right">0.06</td>
 </tr>
-<tr>
-<td align="right">
-COL4A2
-</td>
-<td align="right">
-0.45
-</td>
-<td align="right">
-0.20
-</td>
-<td align="right">
-2.29
-</td>
-<td align="right">
-0.02
-</td>
+<tr class="odd">
+<td>COL4A2</td>
+<td align="right">0.45</td>
+<td align="right">0.20</td>
+<td align="right">2.29</td>
+<td align="right">0.02</td>
 </tr>
-<tr>
-<td align="right">
-IGFBP5.1
-</td>
-<td align="right">
-0.36
-</td>
-<td align="right">
-0.17
-</td>
-<td align="right">
-2.17
-</td>
-<td align="right">
-0.03
-</td>
+<tr class="even">
+<td>IGFBP5.1</td>
+<td align="right">0.36</td>
+<td align="right">0.17</td>
+<td align="right">2.17</td>
+<td align="right">0.03</td>
 </tr>
-<tr>
-<td align="right">
-PRC1
-</td>
-<td align="right">
-0.55
-</td>
-<td align="right">
-0.28
-</td>
-<td align="right">
-1.96
-</td>
-<td align="right">
-0.05
-</td>
+<tr class="odd">
+<td>PRC1</td>
+<td align="right">0.55</td>
+<td align="right">0.28</td>
+<td align="right">1.96</td>
+<td align="right">0.05</td>
 </tr>
+</tbody>
 </table>
 </div>
 <div id="simulated-data-ar1" class="section level2">
