@@ -14,11 +14,10 @@ using namespace arma;
 //' @param mincor a threshold of (absolute) correlation above which a pair is considered highly correlated
 //' @return a list containing  variables to ignore because they are highly correlated with other, and SLR coefficients
 // [[Rcpp::export]]
-List initVals(NumericMatrix Z, arma::colvec Yr, float mincor=0.7) {
+List initVals(NumericMatrix Z, arma::colvec Yr, double mincor=0.7) {
   int K = Z.ncol(), n = Z.nrow();
   NumericVector betas(K);
   IntegerVector discard(K);
-  arma::mat zzz(n,2);
   for (int i=0; i < K; i++) {
     NumericVector Z0 = Z(_, i);
     betas[i] = std::inner_product(Z0.begin(), Z0.end(), Yr.begin(), 0.0)/n;
@@ -78,10 +77,9 @@ arma::mat fetchZ(IntegerVector nn,  NumericMatrix Z) {
 
 /* ZMatrix returns the matrix Z*Gamma */
 arma::mat ZMatrix(IntegerVector nn, IntegerVector gamma, NumericMatrix Z){
-  arma::mat ZG(Z.ncol(),1);
   switch(nn.size()) {
-  case 0: // no significant predictors
-    return ZG;
+  case 0: // no significant predictors — return N×0 empty matrix
+    return arma::mat(Z.nrow(), 0);
   case 1: // just one significant predictor
     return fetchZ(nn, Z) * as<arma::colvec>(gamma[nn]);
   default:
@@ -243,6 +241,7 @@ List fit_gam(arma::colvec Yw, arma::mat X, NumericMatrix Z,
     double t_e = s2r * arma::trace(ZtZ * B1)
                + s2e*s2e * arma::dot(SiY0, SiY0);
     s2e = t_e / (double)n;
+    if (s2e <= 0.0) s2e = 1e-10;
 
     // ── Rebuild B for updated s2e ─────────────────────────────────────────
     double coef2 = s2r / (s2e * s2e);
@@ -263,6 +262,7 @@ List fit_gam(arma::colvec Yw, arma::mat X, NumericMatrix Z,
 
     double t_r = trace_r + s2r_old*s2r_old * arma::dot(ZtSiY0, ZtSiY0);
     s2r = t_r / (double)LT;
+    if (s2r <= 0.0) s2r = 1e-10;
 
     if (mu > 2.0*std::sqrt(s2e))
       s2r = std::max(std::pow((mu - 2.0*std::sqrt(s2e))/3.0, 2.0), s2r);
@@ -309,8 +309,7 @@ List GAMupdate(IntegerVector initidx, IntegerVector initval, arma::colvec Yr, Nu
     char outputFilename[] = "SEMMS.log";
     ofp = fopen(outputFilename, "a");
     if (ofp == NULL) {
-      fprintf(stderr, "Can't open output file %s!\n", outputFilename);
-      exit(1);
+      Rcpp::stop("Can't open output file SEMMS.log!");
     }
     fprintf(ofp,"==========\n");
     time_t t = time(NULL);
@@ -345,12 +344,13 @@ List GAMupdate(IntegerVector initidx, IntegerVector initval, arma::colvec Yr, Nu
   }
 
   arma::colvec beta(xk);
-  NumericVector f0pn(3), p(3), kk(1);
+  NumericVector f0pn(3);
   IntegerVector gam_tmp(gam.size()), nnt(1), Component(3);
   IntegerVector idx(1);
   arma::mat ZGammat, zzz(1,1), cr(1,1);   // ZGammat declared without N×K pre-allocation
   IntegerVector lockOut(K);
   bool kNotIncluded = true;
+  if (randomize) srand((unsigned)time(NULL));
 
   for (int j = 0; j < maxsteps; j++) {
     if (ptf) fprintf(ofp, "Iteration %d\n", j);
@@ -362,7 +362,7 @@ List GAMupdate(IntegerVector initidx, IntegerVector initval, arma::colvec Yr, Nu
     s2e  = fitted["s2e"];
     ll   = fitted["ll"];
 
-    double maxc = minchange;
+
     NumericVector delta_ll(K, 0.0);
     IntegerVector newgamk_array(K);
     idx = subset0(gam, '!');
@@ -405,9 +405,13 @@ List GAMupdate(IntegerVector initidx, IntegerVector initval, arma::colvec Yr, Nu
       p0   = subset0(gam, '=').size() * exp(f0pn[1]);
       p2   = subset0(gam, '>').size() * exp(f0pn[2]);
       psum = p0 + p1 + p2;
-      pp(k,0) = p0/psum;
-      pp(k,1) = p1/psum;
-      pp(k,2) = p2/psum;
+      if (psum > 0.0) {
+        pp(k,0) = p0/psum;
+        pp(k,1) = p1/psum;
+        pp(k,2) = p2/psum;
+      } else {
+        pp(k,0) = pp(k,1) = pp(k,2) = 1.0/3.0;
+      }
 
       // Lock out variables highly correlated with currently-selected ones
       if (kNotIncluded && (idx.size() > 0)) {
@@ -434,7 +438,6 @@ List GAMupdate(IntegerVector initidx, IntegerVector initval, arma::colvec Yr, Nu
       int chosen_k = 0;
       if (randomize) {
         NumericVector relativeweights = 100 * delta_ll / sum(delta_ll);
-        srand(time(NULL));
         int thr = rand() % 100;
         double csum = 0;
         for (int ii = 0; ii < delta_ll.length(); ii++) {

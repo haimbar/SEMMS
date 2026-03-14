@@ -38,7 +38,9 @@ To create files which SEMMS can use, please read the documentation of the functi
 
 ## Updates
 
-- Version 0.2.0 uses the edgefinder function in order to find highly correlated pairs of predictors. Then, it forms clusters of predictors and picks the central variable from each cluster to be included in the fitting process. Any variable not assigned to a cluster is also included in the model fitting. The excluded variables are shown by the plotMDS function, if they end up begin highly correlated with a significant predictor. By default, initWithEdgeFinder is set to TRUE. To pick the initial set of predictors manually, set this argument to FALSE, and use the nnset argument. 
+- Version 0.2.5 significantly improves computational performance via the Woodbury matrix identity and the matrix determinant lemma. The core C++ routines (`loglik` and `fit_gam`) no longer form N×N matrices: log-determinant computation is reduced from O(N³) to O(L³) where L is the number of currently-selected variables (typically L << N), and all quadratic forms and traces are computed in O(N·L) time. Pre-computing fixed quantities outside the EM loop further reduces redundant work. On a simulated dataset with N=500 and P=1,000 predictors, the speedup is approximately 38×.
+
+- Version 0.2.0 uses the edgefinder function in order to find highly correlated pairs of predictors. Then, it forms clusters of predictors and picks the central variable from each cluster to be included in the fitting process. Any variable not assigned to a cluster is also included in the model fitting. The excluded variables are shown by the plotMDS function, if they end up begin highly correlated with a significant predictor. By default, initWithEdgeFinder is set to TRUE. To pick the initial set of predictors manually, set this argument to FALSE, and use the nnset argument.
 
 ## The Ozone data
 

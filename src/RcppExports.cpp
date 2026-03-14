@@ -6,15 +6,20 @@
 
 using namespace Rcpp;
 
+#ifdef RCPP_USE_GLOBAL_ROSTREAM
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
+#endif
+
 // initVals
-List initVals(NumericMatrix Z, arma::colvec Yr, float mincor);
+List initVals(NumericMatrix Z, arma::colvec Yr, double mincor);
 RcppExport SEXP _SEMMS_initVals(SEXP ZSEXP, SEXP YrSEXP, SEXP mincorSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type Z(ZSEXP);
     Rcpp::traits::input_parameter< arma::colvec >::type Yr(YrSEXP);
-    Rcpp::traits::input_parameter< float >::type mincor(mincorSEXP);
+    Rcpp::traits::input_parameter< double >::type mincor(mincorSEXP);
     rcpp_result_gen = Rcpp::wrap(initVals(Z, Yr, mincor));
     return rcpp_result_gen;
 END_RCPP

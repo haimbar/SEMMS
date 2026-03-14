@@ -11,10 +11,10 @@ initVals <- function(Z, Yr, mincor = 0.7) {
     .Call('_SEMMS_initVals', PACKAGE = 'SEMMS', Z, Yr, mincor)
 }
 
-#' Get an initial set of putative variables for the GAM algorithm
+#' Run the GAM algorithm to select non-null variables
 #'
 #' @param initidx an initial set of variables to use in the fitting algorithm
-#' @param initval the values (-1 or 1) of the initial set of preditors
+#' @param initval the values (-1 or 1) of the initial set of predictors
 #' @param Yr the response vector
 #' @param Xr the fixed-effect design matrix
 #' @param Z the matrix of all putative variables
@@ -22,9 +22,9 @@ initVals <- function(Z, Yr, mincor = 0.7) {
 #' @param randomize Boolean - whether to run the greedy or randomized version
 #' @param mincor a threshold of (absolute) correlation above which a pair is considered highly correlated
 #' @param maxsteps maximum number of GAM iterations
-#' @param minchange the minimum difference in log-likelihood between consecutive iterations below which we assume that the algorithm has  converged
+#' @param minchange the minimum difference in log-likelihood between consecutive iterations below which we assume that the algorithm has converged
 #' @param ptf Boolean - whether to print debug messages to SEMMS.log
-#' @return a list containing  the index of non-null variables (columns in Z),  the mixture model parameters, the sign of the selected coefficients, a matrix with posterior probabilities, and an indicator array for locked out variables
+#' @return a list containing the index of non-null variables (columns in Z), the mixture model parameters, the sign of the selected coefficients, a matrix with posterior probabilities, and an indicator array for locked out variables
 GAMupdate <- function(initidx, initval, Yr, Xr, Z, distr = 'N', randomize = TRUE, mincor = 0.7, maxsteps = 20L, minchange = 1, ptf = TRUE) {
     .Call('_SEMMS_GAMupdate', PACKAGE = 'SEMMS', initidx, initval, Yr, Xr, Z, distr, randomize, mincor, maxsteps, minchange, ptf)
 }
