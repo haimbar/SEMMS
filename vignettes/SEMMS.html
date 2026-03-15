@@ -345,23 +345,29 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 
-<p>This is supplementary material to the paper <em>“A Scalable Empirical
-Bayes Approach to Variable Selection in Generalized Linear Models”</em>
-(Bar, Booth &amp; Wells, 2019). This vignette provides code and sample
-output for some simulated data and case studies.</p>
+<p>This vignette is based on the paper <em>“A Scalable Empirical Bayes
+Approach to Variable Selection in Generalized Linear Models”</em> (Bar,
+Booth &amp; Wells, 2019). It provides code and sample output for
+simulated data and case studies, and documents the mixed-effects
+extension (<code>fitSEMMSmixed()</code>) introduced in version 0.4.0,
+which adds support for random intercepts and/or random slopes for
+<strong>Gaussian responses</strong>.</p>
 <div id="set-up" class="section level2">
 <h2>Set-Up</h2>
 <p>SEMMS is implemented in R and is available as a package from github,
 <a href="https://github.com/haimbar/SEMMS" class="uri">https://github.com/haimbar/SEMMS</a>
 <!--the following web-site:
 https://haim-bar.uconn.edu/software/ --></p>
-<p>SEMMS requires R version 3.6.0 and up. It requires five packages to
-be pre-installed: Rcpp, RcppArmadillo, MASS, car, and, as of version
-0.2.0 it requires the edgefinder package, available from <a href="https://github.com/haimbar/edgefinder" class="uri">https://github.com/haimbar/edgefinder</a> . It can be
-installed by using</p>
-<pre><code>devtools::install_github(&quot;haimbar/edgefinder&quot;)</code></pre>
-<p>To install SEMMS,</p>
+<p>SEMMS requires R version 3.6.0 and up. All dependencies are installed
+automatically when you install SEMMS via <code>devtools</code>:</p>
 <pre><code>devtools::install_github(&quot;haimbar/SEMMS&quot;)</code></pre>
+<p>The dependencies are: <code>Rcpp</code>, <code>RcppArmadillo</code>
+(compile-time), <code>MASS</code>, <code>car</code>, <code>lme4</code>,
+and <code>edgefinder</code>. The last of these is a GitHub-only package;
+it is pulled in automatically via the <code>Remotes</code> field in
+SEMMS’s <code>DESCRIPTION</code>, but can also be installed
+manually:</p>
+<pre><code>devtools::install_github(&quot;haimbar/edgefinder&quot;)</code></pre>
 <!--download the latest version (currently SEMMS_0.1.5.tar.gz) and in the R console navigate to the directory where the file is saved, and run:
 
 ```

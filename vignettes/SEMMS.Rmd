@@ -10,8 +10,8 @@ vignette: >
 ---
 
 
-This is supplementary material to the  paper *"A Scalable Empirical Bayes Approach to Variable Selection in Generalized Linear Models"* (Bar, Booth & Wells, 2019).
-This vignette provides code and sample output for some simulated data and case studies.
+This vignette is based on the paper *"A Scalable Empirical Bayes Approach to Variable Selection in Generalized Linear Models"* (Bar, Booth & Wells, 2019).
+It provides code and sample output for simulated data and case studies, and documents the mixed-effects extension (`fitSEMMSmixed()`) introduced in version 0.4.0, which adds support for random intercepts and/or random slopes for **Gaussian responses**.
 
 ## Set-Up
 
@@ -19,13 +19,16 @@ SEMMS is implemented in R and is available as a package from github, https://git
 <!--the following web-site:
 https://haim-bar.uconn.edu/software/ -->
 
-SEMMS requires R version 3.6.0 and up. It requires five packages to be pre-installed: Rcpp, RcppArmadillo, MASS, car, and, as of version 0.2.0 it requires the edgefinder package, available from https://github.com/haimbar/edgefinder . It can be installed by using 
-```
-devtools::install_github("haimbar/edgefinder")
-```
-To install SEMMS, 
+SEMMS requires R version 3.6.0 and up. All dependencies are installed automatically when you install SEMMS via `devtools`:
+
 ```
 devtools::install_github("haimbar/SEMMS")
+```
+
+The dependencies are: `Rcpp`, `RcppArmadillo` (compile-time), `MASS`, `car`, `lme4`, and `edgefinder`. The last of these is a GitHub-only package; it is pulled in automatically via the `Remotes` field in SEMMS's `DESCRIPTION`, but can also be installed manually:
+
+```
+devtools::install_github("haimbar/edgefinder")
 ```
 <!--download the latest version (currently SEMMS_0.1.5.tar.gz) and in the R console navigate to the directory where the file is saved, and run:
 
