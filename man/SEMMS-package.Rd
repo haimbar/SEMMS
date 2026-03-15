@@ -5,7 +5,7 @@
 \alias{SEMMS-package}
 \title{SEMMS: Variable Selection in Generalized Linear Models via Empirical Bayes}
 \description{
-Fits a three-component normal mixture model to the coefficients in the linear predictor of a GLM (Gaussian, Poisson, or binomial response) using an empirical Bayes approach and a Generalized Alternating Maximization algorithm. Version 0.4.0 adds fitSEMMSmixed(), an alternating coordinate-ascent extension that incorporates subject-level random intercepts and/or random slopes via lme4, enabling variable selection in mixed-effects models with high-dimensional predictor sets.
+Fits a three-component normal mixture model to the coefficients in the linear predictor of a GLM (Gaussian, Poisson, or binomial response) using an empirical Bayes approach and a Generalized Alternating Maximization algorithm. Version 0.4.1 extends fitSEMMSmixed() to Poisson and binomial responses using the proper IRLS (Penalised Quasi-Likelihood) working response (Breslow and Clayton, 1993), in addition to the Gaussian mixed-effects support introduced in version 0.4.0.
 }
 \author{
 \strong{Maintainer}: Haim Bar \email{haim.bar@uconn.edu}

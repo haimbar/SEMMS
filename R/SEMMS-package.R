@@ -5,8 +5,8 @@
 #' @useDynLib SEMMS
 #' @importFrom Rcpp evalCpp sourceCpp
 #' @importFrom graphics lines plot points text
-#' @importFrom stats AIC as.formula cor dt formula glm lm
-#'   median na.omit p.adjust model.matrix predict
+#' @importFrom stats AIC as.formula binomial cor dt fitted formula glm lm
+#'   median na.omit p.adjust model.matrix poisson predict
 #' @importFrom utils read.table
 #' @importFrom lme4 lmer glmer
 #' @importFrom car vif

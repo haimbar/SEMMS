@@ -531,6 +531,39 @@ addInteractions <- function(Z) {
   )
 }
 
+# Compute the RE-adjusted IRLS working response W*_ij from a fitted
+# lmer/glmer object.  For Gaussian this is Y - RE_offset (identical to the
+# Gaussian mixed step).  For Poisson/binomial it is the full PQL working
+# response (Breslow & Clayton 1993) with the random-effect contribution
+# already removed:
+#
+#   W*_ij = eta_fixed_ij + (Y_ij - mu_hat_ij) * d(eta)/d(mu)|mu_hat
+#
+# Poisson  (log link): d(eta)/d(mu) = 1/mu  =>  W* = eta_fixed + (Y - mu)/mu
+# Binomial (logit):    d(eta)/d(mu) = 1/(pi(1-pi))  => W* = eta_fixed + (Y-pi)/(pi(1-pi))
+#
+# Because mu_hat/pi_hat are continuous quantities from the glmer fitted
+# values, W* is continuous for all families, carrying genuine within-subject
+# information at every outer iteration.
+.semms_working_response <- function(Y, fit, distribution) {
+  if (distribution == "N") {
+    re_off <- as.numeric(predict(fit) - predict(fit, re.form = NA))
+    return(Y - re_off)
+  }
+  # Poisson or binomial: use fitted values from glmer
+  eta_fixed <- as.numeric(predict(fit, re.form = NA))   # link scale (default)
+  mu_hat    <- as.numeric(fitted(fit))                   # response scale
+  if (distribution == "P") {
+    # guard against mu_hat <= 0 (should not happen, but numerical safety)
+    mu_hat <- pmax(mu_hat, 1e-8)
+    eta_fixed + (Y - mu_hat) / mu_hat
+  } else {
+    # binomial: guard against mu_hat at boundary
+    mu_hat <- pmin(pmax(mu_hat, 1e-6), 1 - 1e-6)
+    eta_fixed + (Y - mu_hat) / (mu_hat * (1 - mu_hat))
+  }
+}
+
 .semms_build_re_term <- function(random_intercept, random_slope, dat) {
   slope_name <- if (random_slope) dat$random_slope_name else NULL
   if (random_intercept && !is.null(slope_name)) {
@@ -676,17 +709,27 @@ fitSEMMSmixed <- function(dat,
 
   re_term <- .semms_build_re_term(random_intercept, random_slope, dat)
 
-  # Pre-compute link-transformed response used in the fixed-effects step.
-  # For Gaussian this is just Y; for P/B it is g(Y) on the link scale.
-  Y_link <- .semms_link(dat$Y, distribution)
-
   # -- Step 0: warm-start -- null lmer/glmer (intercept-only fixed part) -----
-  re_offset <- .semms_fit_re_offset(dat, nnt = integer(0), re_term,
-                                     distribution = distribution, verbose)
-  if (verbose)
-    cat(sprintf("Null %s fitted.  RE range: [%.3f, %.3f]\n",
-                if (distribution == "N") "lmer" else "glmer",
-                min(re_offset), max(re_offset)))
+  # Fit a null model to initialise both the RE offset and the working response.
+  null_fit <- tryCatch(
+    .semms_fit_mixed(dat, nnt = integer(0), re_term,
+                     distribution = distribution, REML = FALSE),
+    error = function(e) NULL
+  )
+  if (is.null(null_fit)) {
+    # Fallback: zero RE offset, plug-in link transformation
+    re_offset    <- rep(0.0, dat$N)
+    working_resp <- .semms_link(dat$Y, distribution)
+    if (verbose)
+      cat("Null lmer/glmer failed; initialising with zero RE offset.\n")
+  } else {
+    re_offset    <- as.numeric(predict(null_fit) - predict(null_fit, re.form = NA))
+    working_resp <- .semms_working_response(dat$Y, null_fit, distribution)
+    if (verbose)
+      cat(sprintf("Null %s fitted.  RE range: [%.3f, %.3f]\n",
+                  if (distribution == "N") "lmer" else "glmer",
+                  min(re_offset), max(re_offset)))
+  }
 
   gam.out   <- NULL
   nnt       <- integer(0)
@@ -694,9 +737,9 @@ fitSEMMSmixed <- function(dat,
 
   for (outer_iter in seq_len(max_outer_iter)) {
 
-    # -- A: fixed-effects update on the link-scale RE-adjusted response ------
+    # -- A: fixed-effects update on the IRLS working response ----------------
     dat_adj   <- dat
-    dat_adj$Y <- Y_link - re_offset   # always Gaussian on link scale
+    dat_adj$Y <- working_resp   # RE-adjusted working response (Gaussian on link scale)
 
     fit_fixed <- fitSEMMS(dat_adj,
                            mincor             = mincor,
@@ -718,15 +761,31 @@ fitSEMMSmixed <- function(dat,
                   outer_iter, length(nnt)))
 
     # -- B: RE update on original Y with lmer/glmer --------------------------
-    re_offset_new <- .semms_fit_re_offset(dat, nnt, re_term,
-                                           distribution = distribution, verbose)
+    new_fit <- tryCatch(
+      .semms_fit_mixed(dat, nnt, re_term,
+                       distribution = distribution, REML = FALSE),
+      error = function(e) {
+        if (verbose)
+          cat("  lmer/glmer fitting failed; keeping current RE offset.\n")
+        NULL
+      }
+    )
+
+    if (!is.null(new_fit)) {
+      re_offset_new <- as.numeric(predict(new_fit) - predict(new_fit, re.form = NA))
+      working_resp_new <- .semms_working_response(dat$Y, new_fit, distribution)
+    } else {
+      re_offset_new    <- re_offset
+      working_resp_new <- working_resp
+    }
 
     delta <- max(abs(re_offset_new - re_offset))
     if (verbose)
       cat(sprintf("  max|delta re_offset| = %.6f  (tol = %.6f)\n",
                   delta, outer_tol))
 
-    re_offset <- re_offset_new
+    re_offset    <- re_offset_new
+    working_resp <- working_resp_new
 
     if (delta < outer_tol) {
       converged <- TRUE

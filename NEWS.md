@@ -1,3 +1,35 @@
+# SEMMS 0.4.1
+
+## New features
+
+* `fitSEMMSmixed()` now supports **Poisson** (`distribution = "P"`) and
+  **binomial** (`distribution = "B"`) responses in addition to Gaussian.
+  The fixed-effects step uses the proper Penalised Quasi-Likelihood (PQL)
+  IRLS working response (Breslow & Clayton, 1993):
+
+  - Poisson (log link):    `W* = η̂_fixed + (Y − μ̂) / μ̂`
+  - Binomial (logit link): `W* = η̂_fixed + (Y − π̂) / (π̂(1 − π̂))`
+
+  Because `μ̂` and `π̂` are continuous fitted values from `glmer`, the
+  working response is continuous at every outer iteration for both families.
+
+* Added `.semms_working_response()` (internal): computes the RE-adjusted
+  IRLS working response from a fitted `lmer`/`glmer` object for any of the
+  three supported families.
+
+* `.semms_fit_mixed()` (internal): unified `lmer`/`glmer` fitter used
+  throughout the alternating loop; dispatches to `lmer` for Gaussian and
+  `glmer` (with the appropriate family object) for Poisson/binomial.
+
+## Documentation
+
+* Vignette updated: removed the "Gaussian only" caveat, added description
+  of the IRLS working response, added non-Gaussian usage examples, and
+  added the Breslow & Clayton (1993) reference.
+* `DESCRIPTION` updated to reflect non-Gaussian support.
+
+---
+
 # SEMMS 0.3.0
 
 ## Bug fixes

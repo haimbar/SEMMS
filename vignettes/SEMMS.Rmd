@@ -11,7 +11,7 @@ vignette: >
 
 
 This vignette is based on the paper *"A Scalable Empirical Bayes Approach to Variable Selection in Generalized Linear Models"* (Bar, Booth & Wells, 2019).
-It provides code and sample output for simulated data and case studies, and documents the mixed-effects extension (`fitSEMMSmixed()`) introduced in version 0.4.0, which adds support for random intercepts and/or random slopes for **Gaussian responses**.
+It provides code and sample output for simulated data and case studies, and documents the mixed-effects extension (`fitSEMMSmixed()`) introduced in version 0.4.0 (Gaussian) and extended to Poisson and binomial responses in version 0.4.1.
 
 ## Set-Up
 
@@ -41,7 +41,9 @@ To create files which SEMMS can use, please read the documentation of the functi
 
 ## Updates
 
-- Version 0.4.0 adds `fitSEMMSmixed()`, an alternating coordinate-ascent extension that supports random intercepts, random slopes, or both, via the `lme4` package. **This option is currently available for Gaussian responses only.** See the [Mixed-Effects Extension](#mixed-effects-extension) section below for details.
+- Version 0.4.1 extends `fitSEMMSmixed()` to **Poisson** and **binomial** responses using the proper IRLS (Penalised Quasi-Likelihood) working response of Breslow and Clayton (1993). See the [Mixed-Effects Extension](#mixed-effects-extension) section below for details.
+
+- Version 0.4.0 adds `fitSEMMSmixed()`, an alternating coordinate-ascent extension that supports random intercepts, random slopes, or both, via the `lme4` package, for Gaussian responses. See the [Mixed-Effects Extension](#mixed-effects-extension) section below for details.
 
 - Version 0.2.5 significantly improves computational performance via the Woodbury matrix identity and the matrix determinant lemma. The core C++ routines (`loglik` and `fit_gam`) no longer form N×N matrices: log-determinant computation is reduced from O(N³) to O(L³) where L is the number of currently-selected variables (typically L << N), and all quadratic forms and traces are computed in O(N·L) time. Pre-computing fixed quantities outside the EM loop further reduces redundant work. On a simulated dataset with N=500 and P=1,000 predictors, the speedup is approximately 38×.
 
@@ -260,27 +262,35 @@ plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="Simulated Binomial (AR1)")
 Version 0.4.0 introduces `fitSEMMSmixed()`, which extends SEMMS to settings
 where observations are grouped (e.g., repeated measures, longitudinal data)
 and the response depends on subject-level random effects in addition to
-high-dimensional fixed effects.
-
-> **Note:** The mixed-effects extension is currently implemented for
-> **Gaussian responses only**.  Support for Poisson and binomial responses
-> will be added in a future version.
+high-dimensional fixed effects.  Version 0.4.1 extends support to **Poisson**
+and **binomial** responses.
 
 ### How it works
 
 The algorithm alternates between two steps until convergence:
 
-1. **Fixed-effects step.** Run `fitSEMMS()` on the RE-adjusted response
-   $Y^* = Y - \hat{u}$, where $\hat{u}$ is the current vector of random-effect
-   (BLUP) contributions.
-2. **Random-effects step.** Refit an `lmer` model conditional on the currently
-   selected fixed effects (using ML); extract the new BLUP contributions as the
-   updated $\hat{u}$.
+1. **Fixed-effects step.** Run `fitSEMMS()` on the RE-adjusted IRLS working
+   response $W^*_{ij}$, treating it as Gaussian.  For Gaussian data this is
+   simply $Y - \hat{u}$.  For Poisson and binomial data it is the
+   Penalised Quasi-Likelihood (PQL) working response (Breslow & Clayton, 1993)
+   with the random-effect contribution removed:
 
-The loop is warm-started with a null `lmer` (intercept-only fixed part) and
-stops when $\max|\Delta \hat{u}| <$ `outer_tol` (default $10^{-3}$).  A final
-REML `lmer` with the selected predictors is returned as the reported model.
-In practice the loop converges in 2–4 outer iterations.
+   $$W^*_{ij} = \hat\eta^\text{fixed}_{ij} + (Y_{ij} - \hat\mu_{ij})\,
+     \left.\frac{\partial\eta}{\partial\mu}\right|_{\hat\mu_{ij}}$$
+
+   where $\hat\eta^\text{fixed}_{ij} = \texttt{predict(glmer, re.form=NA)}$
+   and $\hat\mu_{ij} = \texttt{fitted(glmer)}$.  Because $\hat\mu_{ij}$ is
+   a continuous fitted value, $W^*_{ij}$ is continuous for all three families.
+
+2. **Random-effects step.** Refit an `lmer`/`glmer` model conditional on the
+   currently selected fixed effects (ML/Laplace); extract the updated working
+   response for the next iteration.
+
+The loop is warm-started with a null `lmer`/`glmer` (intercept-only fixed
+part) and stops when $\max|\Delta\hat{u}| <$ `outer_tol` (default $10^{-3}$).
+A final REML `lmer` (Gaussian) or Laplace `glmer` (Poisson/binomial) with the
+selected predictors is returned as the reported model.
+In practice the loop converges in 2–5 outer iterations.
 
 ### Data preparation
 
@@ -292,7 +302,7 @@ workflow:
 - `random_slope_col` – column index of the continuous variable (e.g. time)
   used as a random slope.  Required when `random_slope = TRUE`.
 
-### Example: simulated longitudinal data
+### Example: Gaussian simulated longitudinal data
 
 The package ships with a small simulated dataset
 (`sim_mixed_N200_P100_k5.RData`): $N = 200$ observations from 20 subjects
@@ -332,6 +342,48 @@ fit_ri <- fitSEMMSmixed(dat, random_intercept = TRUE, random_slope = FALSE,
                         nn = 5, mincor = 0.7, initWithEdgeFinder = FALSE)
 ```
 
+### Example: non-Gaussian responses (Poisson and binomial)
+
+For Poisson or binomial longitudinal data, pass `distribution = "P"` or
+`distribution = "B"`.  The function automatically uses `glmer()` for the
+random-effects step and the proper IRLS working response for the
+fixed-effects step.
+
+```r
+# --- Poisson mixed model ---
+# Assume dat_pois was created with readInputFile(..., group_col = 2,
+#   random_slope_col = 3) for a Poisson-distributed count response.
+
+fit_pois <- fitSEMMSmixed(dat_pois,
+                           distribution     = "P",
+                           random_intercept = TRUE,
+                           random_slope     = TRUE,
+                           nn = 5, mincor = 0.7,
+                           initWithEdgeFinder = FALSE)
+
+cat("Selected:", fit_pois$gam.out$nn, "\n")
+summary(fit_pois$lmer_fit)   # glmer Poisson fit
+
+# --- Binomial (binary) mixed model ---
+# Assume dat_bin was created with readInputFile(..., group_col = 2)
+# for a 0/1 binary response.  Only a random intercept is used here.
+
+fit_bin <- fitSEMMSmixed(dat_bin,
+                          distribution     = "B",
+                          random_intercept = TRUE,
+                          random_slope     = FALSE,
+                          nn = 5, mincor = 0.7,
+                          initWithEdgeFinder = FALSE)
+
+cat("Selected:", fit_bin$gam.out$nn, "\n")
+summary(fit_bin$lmer_fit)    # glmer binomial fit
+```
+
+The `distribution` argument accepts `"N"` (Gaussian, default), `"P"`
+(Poisson, log link), or `"B"` (binomial, logit link).  The random-effects
+structure is specified independently via `random_intercept` and
+`random_slope` regardless of the chosen family.
+
 ### Examining and plotting the results
 
 After fitting, you can use the same diagnostic functions as for plain SEMMS.
@@ -366,6 +418,8 @@ components if they are not supported by the data.
 Akaike, Hirotugu. 1974. "A new look at the statistical model identification." IEEE Transactions on Automatic Control 19 (6): 716-723.
 
 Bar, Haim, James G. Booth, and Martin T. Wells (2019), Journal of Computational and Graphical Statistics, DOI: 10.1080/10618600.2019.1706542
+
+Breslow, N. E. and Clayton, D. G. (1993). Approximate inference in generalized linear mixed models. *Journal of the American Statistical Association*, 88(421), 9–25.
 
 Breiman, L, and J Friedman. 1985. "Estimating Optimal Transformations for Multiple Regression and Correlation." Technometrics 80: 580-598.
 
