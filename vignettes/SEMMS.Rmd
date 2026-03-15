@@ -38,6 +38,8 @@ To create files which SEMMS can use, please read the documentation of the functi
 
 ## Updates
 
+- Version 0.4.0 adds `fitSEMMSmixed()`, an alternating coordinate-ascent extension that supports random intercepts, random slopes, or both, via the `lme4` package. **This option is currently available for Gaussian responses only.** See the [Mixed-Effects Extension](#mixed-effects-extension) section below for details.
+
 - Version 0.2.5 significantly improves computational performance via the Woodbury matrix identity and the matrix determinant lemma. The core C++ routines (`loglik` and `fit_gam`) no longer form N×N matrices: log-determinant computation is reduced from O(N³) to O(L³) where L is the number of currently-selected variables (typically L << N), and all quadratic forms and traces are computed in O(N·L) time. Pre-computing fixed quantities outside the EM loop further reduces redundant work. On a simulated dataset with N=500 and P=1,000 predictors, the speedup is approximately 38×.
 
 - Version 0.2.0 uses the edgefinder function in order to find highly correlated pairs of predictors. Then, it forms clusters of predictors and picks the central variable from each cluster to be included in the fitting process. Any variable not assigned to a cluster is also included in the model fitting. The excluded variables are shown by the plotMDS function, if they end up begin highly correlated with a significant predictor. By default, initWithEdgeFinder is set to TRUE. To pick the initial set of predictors manually, set this argument to FALSE, and use the nnset argument.
@@ -249,6 +251,112 @@ plotMDS(dataYXZ, fittedSEMMS, fittedGLM, ttl="Simulated Binomial (AR1)")
 
 ![Figure 6: A network representation of the selected model for the simulated data (N5) where 20 predictors were drawn from a multivariate normal distribution with an autoregressive structure](./SimBinAR1withEdgeFinder.png){ width=50% }
 
+
+## Mixed-Effects Extension {#mixed-effects-extension}
+
+Version 0.4.0 introduces `fitSEMMSmixed()`, which extends SEMMS to settings
+where observations are grouped (e.g., repeated measures, longitudinal data)
+and the response depends on subject-level random effects in addition to
+high-dimensional fixed effects.
+
+> **Note:** The mixed-effects extension is currently implemented for
+> **Gaussian responses only**.  Support for Poisson and binomial responses
+> will be added in a future version.
+
+### How it works
+
+The algorithm alternates between two steps until convergence:
+
+1. **Fixed-effects step.** Run `fitSEMMS()` on the RE-adjusted response
+   $Y^* = Y - \hat{u}$, where $\hat{u}$ is the current vector of random-effect
+   (BLUP) contributions.
+2. **Random-effects step.** Refit an `lmer` model conditional on the currently
+   selected fixed effects (using ML); extract the new BLUP contributions as the
+   updated $\hat{u}$.
+
+The loop is warm-started with a null `lmer` (intercept-only fixed part) and
+stops when $\max|\Delta \hat{u}| <$ `outer_tol` (default $10^{-3}$).  A final
+REML `lmer` with the selected predictors is returned as the reported model.
+In practice the loop converges in 2–4 outer iterations.
+
+### Data preparation
+
+`readInputFile()` accepts two new optional arguments for the mixed-model
+workflow:
+
+- `group_col` – column index of the grouping variable (subject ID) used as the
+  random-intercept factor.
+- `random_slope_col` – column index of the continuous variable (e.g. time)
+  used as a random slope.  Required when `random_slope = TRUE`.
+
+### Example: simulated longitudinal data
+
+The package ships with a small simulated dataset
+(`sim_mixed_N200_P100_k5.RData`): $N = 200$ observations from 20 subjects
+over 10 time points, with $K = 100$ candidate predictors of which only 5 are
+truly associated with the response.
+
+```r
+library(SEMMS)
+
+fn  <- system.file("extdata", "sim_mixed_N200_P100_k5.RData",
+                   package = "SEMMS", mustWork = TRUE)
+
+# group_col = 2 (subject), random_slope_col = 3 (time)
+dat <- readInputFile(fn, ycol = 1, Zcols = 4:103,
+                     group_col = 2, random_slope_col = 3)
+
+# Fit with both random intercept and random slope
+fit <- fitSEMMSmixed(dat,
+                     random_intercept = TRUE,
+                     random_slope     = TRUE,
+                     nn = 5, mincor = 0.7,
+                     initWithEdgeFinder = FALSE,
+                     verbose = TRUE)
+
+# Selected variables (should recover columns 1-5)
+cat("Selected:", fit$gam.out$nn, "\n")
+cat("Converged:", fit$converged, "in", fit$outer_iter, "iteration(s)\n")
+
+# Inspect the final REML lmer
+summary(fit$lmer_fit)
+```
+
+To fit only a random intercept (no random slope), use:
+
+```r
+fit_ri <- fitSEMMSmixed(dat, random_intercept = TRUE, random_slope = FALSE,
+                        nn = 5, mincor = 0.7, initWithEdgeFinder = FALSE)
+```
+
+### Examining and plotting the results
+
+After fitting, you can use the same diagnostic functions as for plain SEMMS.
+`runMixedModel()` refits the final REML model for a given set of predictors
+and returns the `lmer` object together with AIC and VIF values:
+
+```r
+mm <- runMixedModel(dat, fit$gam.out$nn, fit$re_term)
+summary(mm$mod)
+
+# Diagnostic plots on the RE-adjusted response
+dat_adj   <- dat
+dat_adj$Y <- dat$Y - fit$re_offset
+glm_fit   <- runLinearModel(dat_adj, fit$gam.out$nn, "N")
+plotFit(glm_fit)
+plotMDS(dat, fit, runLinearModel(dat, fit$gam.out$nn, "N"))
+```
+
+### Choosing the random-effects structure
+
+| Scenario | `random_intercept` | `random_slope` | lme4 term |
+|---|---|---|---|
+| Subjects differ in baseline only | `TRUE` | `FALSE` | `(1 \| subject)` |
+| Subjects differ in trend only | `FALSE` | `TRUE` | `(0 + time \| subject)` |
+| Subjects differ in both (recommended) | `TRUE` | `TRUE` | `(1 + time \| subject)` |
+
+When in doubt, include both; the REML fit will estimate near-zero variance
+components if they are not supported by the data.
 
 ## References
 
