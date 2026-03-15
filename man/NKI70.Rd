@@ -8,7 +8,7 @@
 The NKI70 data has 144 observations and 72 predictors.
 }
 \description{
-The NKI70 data is available from the “penalized” package in R (Goeman, 2010)
+The NKI70 data is available from the "penalized" package in R (Goeman, 2010)
 }
 \examples{
  \dontrun{

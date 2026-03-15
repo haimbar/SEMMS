@@ -16,7 +16,6 @@ runLinearModel(dat, nnt, distr, func = "glm")
 \item{func}{The function to use when fitting the model: glm or lm (default=glm).}
 }
 \value{
-\item{Z}{A numeric matrix of putative variables (in the columns)}
 \item{mod}{The object returned from glm or lm.}
 \item{aic}{The AIC of the model.}
 \item{vif}{The variance inflation factors (if more than one variable is used in the model).}
@@ -27,7 +26,7 @@ Run glm with the selected variables (identified by nnt) as predictors.
 \examples{
 \dontrun{
 fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
-dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
+dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:1001)
 fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
                         distribution="N",verbose=T,rnd=F)
 fittedGLM <- runLinearModel(dataYXZ,fittedSEMMS$gam.out$nn, "N")}

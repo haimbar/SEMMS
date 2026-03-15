@@ -14,7 +14,9 @@ readInputFile(
   Xcols = c(),
   addIntercept = TRUE,
   logTransform = c(),
-  twoWay = FALSE
+  twoWay = FALSE,
+  group_col = NULL,
+  random_slope_col = NULL
 )
 }
 \arguments{
@@ -37,6 +39,14 @@ readInputFile(
 \item{logTransform}{The column numbers which have to be log-transformed (default is none, c()).}
 
 \item{twoWay}{Whether to add all two-way interactions to the putative variables (default=FALSE).}
+
+\item{group_col}{Column index in the input file for the grouping variable used as
+the random-effects subject factor (e.g. subject ID). Stored as dat$group and
+dat$group_name. Required when using fitSEMMSmixed(). Default NULL.}
+
+\item{random_slope_col}{Column index in the input file for the continuous variable
+used as a random slope (e.g. time). Stored as dat$random_slope and
+dat$random_slope_name. Required when random_slope=TRUE in fitSEMMSmixed(). Default NULL.}
 }
 \value{
 \item{Z}{A numeric matrix of putative variables (the columns of Z)}
@@ -47,6 +57,10 @@ readInputFile(
 \item{N}{The number of samples, nrow(Z)}
 \item{K}{The number of putative variables, ncol(Z)}
 \item{P}{The number of fixed effects, ncol(X)}
+\item{group}{(optional) Grouping vector for random intercept, if group_col was supplied.}
+\item{group_name}{(optional) Column name of the grouping variable.}
+\item{random_slope}{(optional) Numeric vector for random slope, if random_slope_col was supplied.}
+\item{random_slope_name}{(optional) Column name of the random slope variable.}
 }
 \description{
 Read a text file containing the response variable, any fixed effects (possibly none),

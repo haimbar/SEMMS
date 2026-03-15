@@ -405,6 +405,12 @@ plotFit <- function(fittedGLM, ttl="") {
 #' @param addIntercept Whether to add an intercept column to the fixed effects (default=TRUE).
 #' @param logTransform The column numbers which have to be log-transformed (default is none, c()).
 #' @param twoWay Whether to add all two-way interactions to the putative variables (default=FALSE).
+#' @param group_col Column index in the input file for the grouping variable used as
+#'   the random-effects subject factor (e.g. subject ID). Stored as dat$group and
+#'   dat$group_name. Required when using fitSEMMSmixed(). Default NULL.
+#' @param random_slope_col Column index in the input file for the continuous variable
+#'   used as a random slope (e.g. time). Stored as dat$random_slope and
+#'   dat$random_slope_name. Required when random_slope=TRUE in fitSEMMSmixed(). Default NULL.
 #' @return \item{Z}{A numeric matrix of putative variables (the columns of Z)}
 #' \item{Y}{The response vector}
 #' \item{X}{Fixed effects matrix (could be null)}
@@ -413,6 +419,10 @@ plotFit <- function(fittedGLM, ttl="") {
 #' \item{N}{The number of samples, nrow(Z)}
 #' \item{K}{The number of putative variables, ncol(Z)}
 #' \item{P}{The number of fixed effects, ncol(X)}
+#' \item{group}{(optional) Grouping vector for random intercept, if group_col was supplied.}
+#' \item{group_name}{(optional) Column name of the grouping variable.}
+#' \item{random_slope}{(optional) Numeric vector for random slope, if random_slope_col was supplied.}
+#' \item{random_slope_name}{(optional) Column name of the random slope variable.}
 #' @keywords input data format
 #' @export
 #' @examples
@@ -422,7 +432,7 @@ plotFit <- function(fittedGLM, ttl="") {
 #' addIntercept = TRUE, logTransform = 2, twoWay = TRUE)}
 readInputFile <- function(file, skip=0, header=TRUE, sep="\t", ycol, Zcols,
                           Xcols=c(), addIntercept = TRUE, logTransform = c(),
-                          twoWay = FALSE){
+                          twoWay = FALSE, group_col = NULL, random_slope_col = NULL){
   if (length(grep("RData",file)) > 0) {
     data <- get(load(file))
   } else if ((length(grep(".txt",file)) > 0) || (length(grep(".csv",file)) > 0)
@@ -466,8 +476,17 @@ readInputFile <- function(file, skip=0, header=TRUE, sep="\t", ycol, Zcols,
   originalZnames <- colnames(Z)
   colnames(Z) <- sprintf("Z%04d",1:K)
   colnamesZ <- colnames(Z)
-  list(Z=Z, Y=Y, X=X, originalZnames=originalZnames, colnamesZ=colnamesZ,
-       N=N, K=K, P=P)
+  out <- list(Z=Z, Y=Y, X=X, originalZnames=originalZnames, colnamesZ=colnamesZ,
+              N=N, K=K, P=P)
+  if (!is.null(group_col)) {
+    out$group      <- data[, group_col]
+    out$group_name <- colnames(data)[group_col]
+  }
+  if (!is.null(random_slope_col)) {
+    out$random_slope      <- data[, random_slope_col]
+    out$random_slope_name <- colnames(data)[random_slope_col]
+  }
+  out
 }
 
 #' Add interaction terms for each pair of putative variables
@@ -497,6 +516,228 @@ addInteractions <- function(Z) {
     }
   }
   return(Zret)
+}
+
+
+# -- Internal helpers for the mixed-model extension ---------------------------
+# (not exported)
+
+.semms_build_re_term <- function(random_intercept, random_slope, dat) {
+  slope_name <- if (random_slope) dat$random_slope_name else NULL
+  if (random_intercept && !is.null(slope_name)) {
+    sprintf("(1 + %s | group)", slope_name)
+  } else if (random_intercept) {
+    "(1 | group)"
+  } else {
+    sprintf("(0 + %s | group)", slope_name)
+  }
+}
+
+.semms_build_datf <- function(dat, nnt) {
+  datf <- data.frame(Y = dat$Y, group = factor(dat$group))
+  if (!is.null(dat$random_slope))
+    datf[[dat$random_slope_name]] <- dat$random_slope
+  if (length(nnt) > 0) {
+    z_sel <- as.data.frame(dat$Z[, nnt, drop = FALSE])
+    colnames(z_sel) <- dat$colnamesZ[nnt]
+    datf <- cbind(datf, z_sel)
+  }
+  datf
+}
+
+.semms_fit_lmer <- function(dat, nnt, re_term, REML = FALSE) {
+  datf       <- .semms_build_datf(dat, nnt)
+  fixed_part <- if (length(nnt) > 0)
+    paste(dat$colnamesZ[nnt], collapse = " + ")
+  else
+    "1"
+  f <- as.formula(sprintf("Y ~ %s + %s", fixed_part, re_term))
+  lme4::lmer(f, data = datf, REML = REML)
+}
+
+.semms_fit_re_offset <- function(dat, nnt, re_term, verbose = FALSE) {
+  fit <- tryCatch(
+    .semms_fit_lmer(dat, nnt, re_term, REML = FALSE),
+    error = function(e) {
+      if (verbose)
+        cat("  lmer fitting failed:", conditionMessage(e),
+            "-- using zero RE offset.\n")
+      NULL
+    }
+  )
+  if (is.null(fit)) return(rep(0.0, dat$N))
+  as.numeric(predict(fit) - predict(fit, re.form = NA))
+}
+
+
+#' Fit SEMMS with random effects (mixed-model extension)
+#'
+#' Alternating coordinate-ascent wrapper around fitSEMMS() that adds a
+#' subject-level random intercept, random slope, or both.  After each round
+#' of fixed-effect variable selection the random effects are updated via
+#' lmer() (ML); once the outer loop converges a final REML lmer is returned
+#' as the reported model.
+#'
+#' The alternating scheme is:
+#' \enumerate{
+#'   \item Warm-start: fit a null lmer (intercept-only fixed part) to
+#'         initialise the RE offset.
+#'   \item Fixed-effects step: run fitSEMMS() on \code{Y - re_offset}.
+#'   \item Random-effects step: refit lmer conditional on the currently
+#'         selected fixed effects (ML); extract the BLUP contribution as the
+#'         new RE offset.
+#'   \item Repeat 2-3 until \code{max(|delta re_offset|) < outer_tol}.
+#'   \item Final model: refit lmer with REML = TRUE.
+#' }
+#'
+#' @param dat Dataset created by readInputFile() with \code{group_col} (and
+#'   optionally \code{random_slope_col}) specified.
+#' @param random_intercept Logical; include a per-subject random intercept
+#'   (default TRUE).
+#' @param random_slope Logical; include a per-subject random slope over the
+#'   variable stored in \code{dat$random_slope} (default FALSE). Requires
+#'   \code{random_slope_col} to have been passed to readInputFile().
+#' @param max_outer_iter Maximum number of alternating outer iterations
+#'   (default 10).
+#' @param outer_tol Convergence threshold: stop when
+#'   \code{max|delta re_offset| < outer_tol} (default 1e-3).
+#' @param mincor,nn,nnset,rnd,BHthr,initWithEdgeFinder,minchange,maxst,ptf,verbose
+#'   Forwarded verbatim to fitSEMMS(); see that function for descriptions.
+#' @return A list with elements:
+#' \item{gam.out}{Output from the final GAMupdate call (same structure as fitSEMMS).}
+#' \item{lmer_fit}{Final REML lmer model object (lme4).}
+#' \item{re_offset}{Length-N vector of RE BLUP contributions at convergence.}
+#' \item{outer_iter}{Number of outer iterations performed.}
+#' \item{converged}{Logical; TRUE if outer_tol was reached.}
+#' \item{re_term}{The lme4 random-effects formula term that was used.}
+#' \item{distribution}{Always "N" in this version.}
+#' \item{mincor}{The mincor value used.}
+#' @keywords mixed model random effects SEMMS lmer
+#' @export
+fitSEMMSmixed <- function(dat,
+                           random_intercept   = TRUE,
+                           random_slope       = FALSE,
+                           max_outer_iter     = 10,
+                           outer_tol          = 1e-3,
+                           mincor             = 0.7,
+                           nn                 = 5,
+                           nnset              = NULL,
+                           rnd                = FALSE,
+                           BHthr              = 0.01,
+                           initWithEdgeFinder = TRUE,
+                           minchange          = 1,
+                           maxst              = 20,
+                           ptf                = FALSE,
+                           verbose            = FALSE) {
+
+  if (!requireNamespace("lme4", quietly = TRUE))
+    stop("Package 'lme4' is required. Install with: install.packages('lme4')")
+
+  if (is.null(dat$group))
+    stop("dat$group not found. Specify group_col in readInputFile().")
+  if (random_slope && is.null(dat$random_slope))
+    stop("dat$random_slope not found. Specify random_slope_col in readInputFile().")
+  if (!random_intercept && !random_slope)
+    stop("At least one of random_intercept or random_slope must be TRUE.")
+
+  re_term <- .semms_build_re_term(random_intercept, random_slope, dat)
+
+  # -- Step 0: warm-start -- null lmer (intercept-only fixed part) -----------
+  re_offset <- .semms_fit_re_offset(dat, nnt = integer(0), re_term, verbose)
+  if (verbose)
+    cat(sprintf("Null lmer fitted.  RE range: [%.3f, %.3f]\n",
+                min(re_offset), max(re_offset)))
+
+  gam.out   <- NULL
+  nnt       <- integer(0)
+  converged <- FALSE
+
+  for (outer_iter in seq_len(max_outer_iter)) {
+
+    # -- A: fixed-effects update on the RE-adjusted response -----------------
+    dat_adj   <- dat
+    dat_adj$Y <- dat$Y - re_offset
+
+    fit_fixed <- fitSEMMS(dat_adj,
+                           mincor             = mincor,
+                           nn                 = nn,
+                           nnset              = nnset,
+                           distribution       = "N",
+                           rnd                = rnd,
+                           BHthr              = BHthr,
+                           initWithEdgeFinder = initWithEdgeFinder,
+                           minchange          = minchange,
+                           maxst              = maxst,
+                           ptf                = ptf,
+                           verbose            = verbose)
+    gam.out <- fit_fixed$gam.out
+    nnt     <- sort(gam.out$nn)
+
+    if (verbose)
+      cat(sprintf("Outer iter %d: %d variable(s) selected.\n",
+                  outer_iter, length(nnt)))
+
+    # -- B: random-effects update conditional on current fixed effects --------
+    re_offset_new <- .semms_fit_re_offset(dat, nnt, re_term, verbose)
+
+    delta <- max(abs(re_offset_new - re_offset))
+    if (verbose)
+      cat(sprintf("  max|delta re_offset| = %.6f  (tol = %.6f)\n",
+                  delta, outer_tol))
+
+    re_offset <- re_offset_new
+
+    if (delta < outer_tol) {
+      converged <- TRUE
+      if (verbose)
+        cat(sprintf("Converged after %d outer iteration(s).\n", outer_iter))
+      break
+    }
+  }
+
+  if (!converged && verbose)
+    warning(sprintf("fitSEMMSmixed: outer loop did not converge in %d iterations.",
+                    max_outer_iter))
+
+  # -- Final model: REML lmer with selected fixed effects -------------------
+  lmer_fit <- .semms_fit_lmer(dat, nnt, re_term, REML = TRUE)
+
+  list(
+    gam.out      = gam.out,
+    lmer_fit     = lmer_fit,
+    re_offset    = re_offset,
+    outer_iter   = outer_iter,
+    converged    = converged,
+    re_term      = re_term,
+    distribution = "N",
+    mincor       = mincor
+  )
+}
+
+
+#' Run the mixed model using variables selected by fitSEMMSmixed
+#'
+#' Convenience wrapper that refits the final REML lmer with the variable
+#' indices in nnt, mirroring the interface of runLinearModel().
+#'
+#' @param dat Dataset created by readInputFile() (with group_col set).
+#' @param nnt Integer vector of selected column indices in Z (from gam.out$nn).
+#' @param re_term Character string giving the lme4 random-effects term, as
+#'   returned in fitSEMMSmixed()$re_term.
+#' @return A list with elements:
+#' \item{mod}{The lmer model object.}
+#' \item{aic}{AIC of the fitted model.}
+#' \item{vif}{Variance inflation factors for the fixed effects (NA if only one predictor).}
+#' @keywords mixed model lmer
+#' @export
+runMixedModel <- function(dat, nnt, re_term) {
+  mod <- .semms_fit_lmer(dat, nnt, re_term, REML = TRUE)
+  vif_val <- if (length(nnt) > 1) {
+    tryCatch(car::vif(mod), error = function(e) NA)
+  } else {
+    NA
+  }
+  list(mod = mod, aic = AIC(mod), vif = vif_val)
 }
 
 
@@ -541,7 +782,7 @@ NULL
 
 #' NKI70 data
 #'
-#' The NKI70 data is available from the “penalized” package in R (Goeman, 2010)
+#' The NKI70 data is available from the "penalized" package in R (Goeman, 2010)
 #'
 #' @docType data
 #' @keywords datasets

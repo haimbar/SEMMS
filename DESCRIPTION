@@ -1,20 +1,25 @@
 Package: SEMMS
 Type: Package
-Title: Variable selection in Generalized Linear Models - an empirical Bayes approach
-Version: 0.3.0
+Title: Variable Selection in Generalized Linear Models via Empirical Bayes
+Version: 0.4.0
+Authors@R: c(
+    person("Haim", "Bar", email = "haim.bar@uconn.edu",
+           role = c("aut", "cre")))
 Author: Haim Bar
 Maintainer: Haim Bar <haim.bar@uconn.edu>
-Imports: Rcpp (>= 1.0.5), RcppArmadillo
+Imports: Rcpp (>= 1.0.5), lme4
 LinkingTo: Rcpp, RcppArmadillo
 Depends: R (>= 3.6.0), car, MASS, edgefinder
 Remotes: haimbar/edgefinder
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
-Description: We fit a three-component mixture model to the coefficients in the 
-    linear predictors in a GLM model (normal, Poisson, or bionmial response.)
-    We use an empirical Bayes approach to fit the model parameters. Fitting is
-    done via a Generalized Alternating Maximization algorithm. 
+Description: Fits a three-component normal mixture model to the coefficients
+    in the linear predictor of a GLM (Gaussian, Poisson, or binomial response)
+    using an empirical Bayes approach and a Generalized Alternating Maximization
+    algorithm. Version 0.4.0 adds fitSEMMSmixed(), an alternating
+    coordinate-ascent extension that incorporates subject-level random intercepts
+    and/or random slopes via lme4, enabling variable selection in
+    mixed-effects models with high-dimensional predictor sets.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
-RoxygenNote: 7.1.1
+RoxygenNote: 7.3.3

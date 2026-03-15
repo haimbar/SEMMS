@@ -2,7 +2,7 @@
 % Please edit documentation in R/RcppExports.R
 \name{GAMupdate}
 \alias{GAMupdate}
-\title{Get an initial set of putative variables for the GAM algorithm}
+\title{Run the GAM algorithm to select non-null variables}
 \usage{
 GAMupdate(
   initidx,
@@ -21,7 +21,7 @@ GAMupdate(
 \arguments{
 \item{initidx}{an initial set of variables to use in the fitting algorithm}
 
-\item{initval}{the values (-1 or 1) of the initial set of preditors}
+\item{initval}{the values (-1 or 1) of the initial set of predictors}
 
 \item{Yr}{the response vector}
 
@@ -37,13 +37,13 @@ GAMupdate(
 
 \item{maxsteps}{maximum number of GAM iterations}
 
-\item{minchange}{the minimum difference in log-likelihood between consecutive iterations below which we assume that the algorithm has  converged}
+\item{minchange}{the minimum difference in log-likelihood between consecutive iterations below which we assume that the algorithm has converged}
 
 \item{ptf}{Boolean - whether to print debug messages to SEMMS.log}
 }
 \value{
-a list containing  the index of non-null variables (columns in Z),  the mixture model parameters, the sign of the selected coefficients, a matrix with posterior probabilities, and an indicator array for locked out variables
+a list containing the index of non-null variables (columns in Z), the mixture model parameters, the sign of the selected coefficients, a matrix with posterior probabilities, and an indicator array for locked out variables
 }
 \description{
-Get an initial set of putative variables for the GAM algorithm
+Run the GAM algorithm to select non-null variables
 }

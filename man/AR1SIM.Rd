@@ -5,7 +5,7 @@
 \alias{AR1SIM}
 \title{Simulated gene expression data}
 \format{
-A 1001 by 100 matrix.
+A 100 by 1001 data frame (100 observations: 1 response column followed by 1000 predictor columns).
 }
 \description{
 AR1SIM is a simulated dataset with a hub structure, consisting of 1000 predictors arranged in 50 hubs. The response variable was constructed as the sum of the variables in the first hub, plus some Gaussian noise.
@@ -13,7 +13,7 @@ AR1SIM is a simulated dataset with a hub structure, consisting of 1000 predictor
 \examples{
 \dontrun{
 fn <- system.file("extdata", "AR1SIM.RData", package = "SEMMS", mustWork = TRUE)
-dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:100)
+dataYXZ <- readInputFile(fn, ycol=1, Zcols=2:1001)
 fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.8, nn=15, minchange= 1,
                         distribution="N",verbose=T,rnd=F)
 fittedGLM <- runLinearModel(dataYXZ,fittedSEMMS$gam.out$nn, "N")
