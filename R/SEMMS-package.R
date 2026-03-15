@@ -8,7 +8,7 @@
 #' @importFrom stats AIC as.formula cor dt formula glm lm
 #'   median na.omit p.adjust model.matrix predict
 #' @importFrom utils read.table
-#' @importFrom lme4 lmer
+#' @importFrom lme4 lmer glmer
 #' @importFrom car vif
 #' @importFrom MASS studres
 #' @importFrom edgefinder edgefinder graphComponents

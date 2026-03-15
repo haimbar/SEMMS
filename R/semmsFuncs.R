@@ -522,6 +522,15 @@ addInteractions <- function(Z) {
 # -- Internal helpers for the mixed-model extension ---------------------------
 # (not exported)
 
+.semms_link <- function(Y, distribution) {
+  switch(distribution,
+    "N" = Y,
+    "P" = log(Y + 0.1),
+    "B" = log((Y + 0.5) / (1.5 - Y)),
+    stop("distribution must be 'N', 'P', or 'B'")
+  )
+}
+
 .semms_build_re_term <- function(random_intercept, random_slope, dat) {
   slope_name <- if (random_slope) dat$random_slope_name else NULL
   if (random_intercept && !is.null(slope_name)) {
@@ -545,22 +554,36 @@ addInteractions <- function(Z) {
   datf
 }
 
-.semms_fit_lmer <- function(dat, nnt, re_term, REML = FALSE) {
+# General mixed-model fitter: lmer for Gaussian, glmer for Poisson/binomial.
+# REML is only honoured for distribution="N" (lmer); glmer always uses ML.
+.semms_fit_mixed <- function(dat, nnt, re_term, distribution = "N", REML = FALSE) {
   datf       <- .semms_build_datf(dat, nnt)
   fixed_part <- if (length(nnt) > 0)
     paste(dat$colnamesZ[nnt], collapse = " + ")
   else
     "1"
   f <- as.formula(sprintf("Y ~ %s + %s", fixed_part, re_term))
-  lme4::lmer(f, data = datf, REML = REML)
+  if (distribution == "N") {
+    lme4::lmer(f, data = datf, REML = REML)
+  } else {
+    fam <- if (distribution == "P") poisson() else binomial()
+    lme4::glmer(f, data = datf, family = fam)
+  }
 }
 
-.semms_fit_re_offset <- function(dat, nnt, re_term, verbose = FALSE) {
+# Thin wrapper kept for backward compatibility.
+.semms_fit_lmer <- function(dat, nnt, re_term, REML = FALSE) {
+  .semms_fit_mixed(dat, nnt, re_term, distribution = "N", REML = REML)
+}
+
+.semms_fit_re_offset <- function(dat, nnt, re_term, distribution = "N",
+                                  verbose = FALSE) {
   fit <- tryCatch(
-    .semms_fit_lmer(dat, nnt, re_term, REML = FALSE),
+    .semms_fit_mixed(dat, nnt, re_term, distribution = distribution,
+                     REML = FALSE),
     error = function(e) {
       if (verbose)
-        cat("  lmer fitting failed:", conditionMessage(e),
+        cat("  lmer/glmer fitting failed:", conditionMessage(e),
             "-- using zero RE offset.\n")
       NULL
     }
@@ -573,25 +596,34 @@ addInteractions <- function(Z) {
 #' Fit SEMMS with random effects (mixed-model extension)
 #'
 #' Alternating coordinate-ascent wrapper around fitSEMMS() that adds a
-#' subject-level random intercept, random slope, or both.  After each round
-#' of fixed-effect variable selection the random effects are updated via
-#' lmer() (ML); once the outer loop converges a final REML lmer is returned
-#' as the reported model.
+#' subject-level random intercept, random slope, or both.  Supports Gaussian
+#' (N), Poisson (P), and binomial (B) responses.
+#'
+#' For non-Gaussian responses the fixed-effects step operates on the
+#' link-scale adjusted response \eqn{g(Y) - \hat{u}}, where \eqn{g} is the
+#' canonical link (log for Poisson, logit for binomial) and \eqn{\hat{u}} is
+#' the current random-effect offset on the same scale.  The random-effects
+#' step uses \code{glmer()} with the original response and the appropriate
+#' family.  This is a pragmatic first-order linearisation consistent with the
+#' existing SEMMS approximation for non-Gaussian fixed-effects models.
 #'
 #' The alternating scheme is:
 #' \enumerate{
-#'   \item Warm-start: fit a null lmer (intercept-only fixed part) to
-#'         initialise the RE offset.
-#'   \item Fixed-effects step: run fitSEMMS() on \code{Y - re_offset}.
-#'   \item Random-effects step: refit lmer conditional on the currently
-#'         selected fixed effects (ML); extract the BLUP contribution as the
-#'         new RE offset.
+#'   \item Warm-start: fit a null lmer/glmer (intercept-only fixed part) to
+#'         initialise the RE offset on the link scale.
+#'   \item Fixed-effects step: run fitSEMMS() on \code{g(Y) - re_offset}
+#'         treating it as Gaussian (distribution = "N").
+#'   \item Random-effects step: refit lmer/glmer conditional on the currently
+#'         selected fixed effects (ML/Laplace); extract the updated RE offset
+#'         on the link scale.
 #'   \item Repeat 2-3 until \code{max(|delta re_offset|) < outer_tol}.
-#'   \item Final model: refit lmer with REML = TRUE.
+#'   \item Final model: refit with REML = TRUE (Gaussian) or Laplace (P/B).
 #' }
 #'
 #' @param dat Dataset created by readInputFile() with \code{group_col} (and
 #'   optionally \code{random_slope_col}) specified.
+#' @param distribution Response distribution: \code{"N"} (Gaussian, default),
+#'   \code{"P"} (Poisson, log link), or \code{"B"} (binomial, logit link).
 #' @param random_intercept Logical; include a per-subject random intercept
 #'   (default TRUE).
 #' @param random_slope Logical; include a per-subject random slope over the
@@ -605,16 +637,17 @@ addInteractions <- function(Z) {
 #'   Forwarded verbatim to fitSEMMS(); see that function for descriptions.
 #' @return A list with elements:
 #' \item{gam.out}{Output from the final GAMupdate call (same structure as fitSEMMS).}
-#' \item{lmer_fit}{Final REML lmer model object (lme4).}
-#' \item{re_offset}{Length-N vector of RE BLUP contributions at convergence.}
+#' \item{lmer_fit}{Final lmer (Gaussian) or glmer (Poisson/binomial) model object.}
+#' \item{re_offset}{Length-N vector of RE contributions (link scale) at convergence.}
 #' \item{outer_iter}{Number of outer iterations performed.}
 #' \item{converged}{Logical; TRUE if outer_tol was reached.}
 #' \item{re_term}{The lme4 random-effects formula term that was used.}
-#' \item{distribution}{Always "N" in this version.}
+#' \item{distribution}{The distribution argument supplied by the user.}
 #' \item{mincor}{The mincor value used.}
-#' @keywords mixed model random effects SEMMS lmer
+#' @keywords mixed model random effects SEMMS lmer glmer
 #' @export
 fitSEMMSmixed <- function(dat,
+                           distribution       = "N",
                            random_intercept   = TRUE,
                            random_slope       = FALSE,
                            max_outer_iter     = 10,
@@ -632,7 +665,8 @@ fitSEMMSmixed <- function(dat,
 
   if (!requireNamespace("lme4", quietly = TRUE))
     stop("Package 'lme4' is required. Install with: install.packages('lme4')")
-
+  if (!distribution %in% c("N", "P", "B"))
+    stop("distribution must be 'N' (Gaussian), 'P' (Poisson), or 'B' (binomial).")
   if (is.null(dat$group))
     stop("dat$group not found. Specify group_col in readInputFile().")
   if (random_slope && is.null(dat$random_slope))
@@ -642,10 +676,16 @@ fitSEMMSmixed <- function(dat,
 
   re_term <- .semms_build_re_term(random_intercept, random_slope, dat)
 
-  # -- Step 0: warm-start -- null lmer (intercept-only fixed part) -----------
-  re_offset <- .semms_fit_re_offset(dat, nnt = integer(0), re_term, verbose)
+  # Pre-compute link-transformed response used in the fixed-effects step.
+  # For Gaussian this is just Y; for P/B it is g(Y) on the link scale.
+  Y_link <- .semms_link(dat$Y, distribution)
+
+  # -- Step 0: warm-start -- null lmer/glmer (intercept-only fixed part) -----
+  re_offset <- .semms_fit_re_offset(dat, nnt = integer(0), re_term,
+                                     distribution = distribution, verbose)
   if (verbose)
-    cat(sprintf("Null lmer fitted.  RE range: [%.3f, %.3f]\n",
+    cat(sprintf("Null %s fitted.  RE range: [%.3f, %.3f]\n",
+                if (distribution == "N") "lmer" else "glmer",
                 min(re_offset), max(re_offset)))
 
   gam.out   <- NULL
@@ -654,9 +694,9 @@ fitSEMMSmixed <- function(dat,
 
   for (outer_iter in seq_len(max_outer_iter)) {
 
-    # -- A: fixed-effects update on the RE-adjusted response -----------------
+    # -- A: fixed-effects update on the link-scale RE-adjusted response ------
     dat_adj   <- dat
-    dat_adj$Y <- dat$Y - re_offset
+    dat_adj$Y <- Y_link - re_offset   # always Gaussian on link scale
 
     fit_fixed <- fitSEMMS(dat_adj,
                            mincor             = mincor,
@@ -677,8 +717,9 @@ fitSEMMSmixed <- function(dat,
       cat(sprintf("Outer iter %d: %d variable(s) selected.\n",
                   outer_iter, length(nnt)))
 
-    # -- B: random-effects update conditional on current fixed effects --------
-    re_offset_new <- .semms_fit_re_offset(dat, nnt, re_term, verbose)
+    # -- B: RE update on original Y with lmer/glmer --------------------------
+    re_offset_new <- .semms_fit_re_offset(dat, nnt, re_term,
+                                           distribution = distribution, verbose)
 
     delta <- max(abs(re_offset_new - re_offset))
     if (verbose)
@@ -699,8 +740,10 @@ fitSEMMSmixed <- function(dat,
     warning(sprintf("fitSEMMSmixed: outer loop did not converge in %d iterations.",
                     max_outer_iter))
 
-  # -- Final model: REML lmer with selected fixed effects -------------------
-  lmer_fit <- .semms_fit_lmer(dat, nnt, re_term, REML = TRUE)
+  # -- Final model: REML lmer (Gaussian) or Laplace glmer (P/B) -------------
+  lmer_fit <- .semms_fit_mixed(dat, nnt, re_term,
+                                distribution = distribution,
+                                REML = (distribution == "N"))
 
   list(
     gam.out      = gam.out,
@@ -709,7 +752,7 @@ fitSEMMSmixed <- function(dat,
     outer_iter   = outer_iter,
     converged    = converged,
     re_term      = re_term,
-    distribution = "N",
+    distribution = distribution,
     mincor       = mincor
   )
 }
@@ -717,21 +760,26 @@ fitSEMMSmixed <- function(dat,
 
 #' Run the mixed model using variables selected by fitSEMMSmixed
 #'
-#' Convenience wrapper that refits the final REML lmer with the variable
+#' Convenience wrapper that refits the final lmer/glmer with the variable
 #' indices in nnt, mirroring the interface of runLinearModel().
 #'
 #' @param dat Dataset created by readInputFile() (with group_col set).
 #' @param nnt Integer vector of selected column indices in Z (from gam.out$nn).
 #' @param re_term Character string giving the lme4 random-effects term, as
 #'   returned in fitSEMMSmixed()$re_term.
+#' @param distribution Response distribution: \code{"N"} (Gaussian, default),
+#'   \code{"P"} (Poisson), or \code{"B"} (binomial).  Should match the value
+#'   used in fitSEMMSmixed().
 #' @return A list with elements:
-#' \item{mod}{The lmer model object.}
+#' \item{mod}{The lmer (Gaussian) or glmer (Poisson/binomial) model object.}
 #' \item{aic}{AIC of the fitted model.}
 #' \item{vif}{Variance inflation factors for the fixed effects (NA if only one predictor).}
-#' @keywords mixed model lmer
+#' @keywords mixed model lmer glmer
 #' @export
-runMixedModel <- function(dat, nnt, re_term) {
-  mod <- .semms_fit_lmer(dat, nnt, re_term, REML = TRUE)
+runMixedModel <- function(dat, nnt, re_term, distribution = "N") {
+  mod <- .semms_fit_mixed(dat, nnt, re_term,
+                           distribution = distribution,
+                           REML = (distribution == "N"))
   vif_val <- if (length(nnt) > 1) {
     tryCatch(car::vif(mod), error = function(e) NA)
   } else {

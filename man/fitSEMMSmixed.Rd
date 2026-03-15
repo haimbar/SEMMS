@@ -6,6 +6,7 @@
 \usage{
 fitSEMMSmixed(
   dat,
+  distribution = "N",
   random_intercept = TRUE,
   random_slope = FALSE,
   max_outer_iter = 10,
@@ -26,6 +27,9 @@ fitSEMMSmixed(
 \item{dat}{Dataset created by readInputFile() with \code{group_col} (and
 optionally \code{random_slope_col}) specified.}
 
+\item{distribution}{Response distribution: \code{"N"} (Gaussian, default),
+\code{"P"} (Poisson, log link), or \code{"B"} (binomial, logit link).}
+
 \item{random_intercept}{Logical; include a per-subject random intercept
 (default TRUE).}
 
@@ -44,36 +48,44 @@ variable stored in \code{dat$random_slope} (default FALSE). Requires
 \value{
 A list with elements:
 \item{gam.out}{Output from the final GAMupdate call (same structure as fitSEMMS).}
-\item{lmer_fit}{Final REML lmer model object (lme4).}
-\item{re_offset}{Length-N vector of RE BLUP contributions at convergence.}
+\item{lmer_fit}{Final lmer (Gaussian) or glmer (Poisson/binomial) model object.}
+\item{re_offset}{Length-N vector of RE contributions (link scale) at convergence.}
 \item{outer_iter}{Number of outer iterations performed.}
 \item{converged}{Logical; TRUE if outer_tol was reached.}
 \item{re_term}{The lme4 random-effects formula term that was used.}
-\item{distribution}{Always "N" in this version.}
+\item{distribution}{The distribution argument supplied by the user.}
 \item{mincor}{The mincor value used.}
 }
 \description{
 Alternating coordinate-ascent wrapper around fitSEMMS() that adds a
-subject-level random intercept, random slope, or both.  After each round
-of fixed-effect variable selection the random effects are updated via
-lmer() (ML); once the outer loop converges a final REML lmer is returned
-as the reported model.
+subject-level random intercept, random slope, or both.  Supports Gaussian
+(N), Poisson (P), and binomial (B) responses.
 }
 \details{
+For non-Gaussian responses the fixed-effects step operates on the
+link-scale adjusted response \eqn{g(Y) - \hat{u}}, where \eqn{g} is the
+canonical link (log for Poisson, logit for binomial) and \eqn{\hat{u}} is
+the current random-effect offset on the same scale.  The random-effects
+step uses \code{glmer()} with the original response and the appropriate
+family.  This is a pragmatic first-order linearisation consistent with the
+existing SEMMS approximation for non-Gaussian fixed-effects models.
+
 The alternating scheme is:
 \enumerate{
-  \item Warm-start: fit a null lmer (intercept-only fixed part) to
-        initialise the RE offset.
-  \item Fixed-effects step: run fitSEMMS() on \code{Y - re_offset}.
-  \item Random-effects step: refit lmer conditional on the currently
-        selected fixed effects (ML); extract the BLUP contribution as the
-        new RE offset.
+  \item Warm-start: fit a null lmer/glmer (intercept-only fixed part) to
+        initialise the RE offset on the link scale.
+  \item Fixed-effects step: run fitSEMMS() on \code{g(Y) - re_offset}
+        treating it as Gaussian (distribution = "N").
+  \item Random-effects step: refit lmer/glmer conditional on the currently
+        selected fixed effects (ML/Laplace); extract the updated RE offset
+        on the link scale.
   \item Repeat 2-3 until \code{max(|delta re_offset|) < outer_tol}.
-  \item Final model: refit lmer with REML = TRUE.
+  \item Final model: refit with REML = TRUE (Gaussian) or Laplace (P/B).
 }
 }
 \keyword{SEMMS}
 \keyword{effects}
+\keyword{glmer}
 \keyword{lmer}
 \keyword{mixed}
 \keyword{model}

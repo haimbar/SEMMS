@@ -4,7 +4,7 @@
 \alias{runMixedModel}
 \title{Run the mixed model using variables selected by fitSEMMSmixed}
 \usage{
-runMixedModel(dat, nnt, re_term)
+runMixedModel(dat, nnt, re_term, distribution = "N")
 }
 \arguments{
 \item{dat}{Dataset created by readInputFile() (with group_col set).}
@@ -13,17 +13,22 @@ runMixedModel(dat, nnt, re_term)
 
 \item{re_term}{Character string giving the lme4 random-effects term, as
 returned in fitSEMMSmixed()$re_term.}
+
+\item{distribution}{Response distribution: \code{"N"} (Gaussian, default),
+\code{"P"} (Poisson), or \code{"B"} (binomial).  Should match the value
+used in fitSEMMSmixed().}
 }
 \value{
 A list with elements:
-\item{mod}{The lmer model object.}
+\item{mod}{The lmer (Gaussian) or glmer (Poisson/binomial) model object.}
 \item{aic}{AIC of the fitted model.}
 \item{vif}{Variance inflation factors for the fixed effects (NA if only one predictor).}
 }
 \description{
-Convenience wrapper that refits the final REML lmer with the variable
+Convenience wrapper that refits the final lmer/glmer with the variable
 indices in nnt, mirroring the interface of runLinearModel().
 }
+\keyword{glmer}
 \keyword{lmer}
 \keyword{mixed}
 \keyword{model}
