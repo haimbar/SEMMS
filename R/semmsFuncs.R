@@ -846,6 +846,35 @@ NULL
 #' @references Goeman, J J. 2010. "L1 penalized estimation in the Cox proportional hazards model." no. 1. 14
 NULL
 
+#' Simulated longitudinal data with a binomial response (mixed-effects)
+#'
+#' sim_mixed_bin_N120_P100_k5 is a simulated longitudinal dataset for testing
+#' fitSEMMSmixed() with distribution = "B".  It contains 120 observations from
+#' 30 subjects measured at 4 time points each.  100 candidate predictors are
+#' included, of which only the first 5 (V1-V5) are truly associated with the
+#' binary response.  The data-generating model is a logistic mixed model with
+#' a random intercept (sigma_b0 = 1.0) and a random slope over time
+#' (sigma_b1 = 0.5).  True log-odds coefficients: 1.5, -1.3, 1.1, -1.0, 0.9.
+#' Generated with set.seed(20260314).
+#'
+#' Column layout: col 1 = Y (0/1), col 2 = subject (factor),
+#' col 3 = time (integer 1-4), cols 4-103 = V1-V100.
+#'
+#' @docType data
+#' @keywords datasets
+#' @name sim_mixed_bin_N120_P100_k5
+#' @examples \dontrun{
+#' fn  <- system.file("extdata", "sim_mixed_bin_N120_P100_k5.RData",
+#'                    package = "SEMMS", mustWork = TRUE)
+#' dat <- readInputFile(fn, ycol = 1, Zcols = 4:103,
+#'                      group_col = 2, random_slope_col = 3)
+#' fit <- fitSEMMSmixed(dat, distribution = "B",
+#'                      random_intercept = TRUE, random_slope = TRUE,
+#'                      nn = 5, mincor = 0.7, initWithEdgeFinder = FALSE)
+#' cat("Selected:", fit$gam.out$nn, "\n")}
+#' @format A data frame with 120 rows and 103 columns.
+NULL
+
 #' Simulated gene expression data with a binary response
 #'
 #' SimBin is a simulated dataset with an autoregressive structure. The true predictors
