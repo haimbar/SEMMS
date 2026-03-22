@@ -1,0 +1,350 @@
+# SEMMS — Agent Reference
+
+SEMMS (Scalable Empirical Bayes approach to Model and variable Selection) is an
+R package for variable selection in Generalized Linear Models.  It fits a
+**three-component normal mixture** to the regression coefficients via an
+Empirical Bayes / Generalized Alternating Maximization (GAM) algorithm, and
+returns a sparse set of selected predictors together with posterior
+probabilities.  A mixed-effects extension (`fitSEMMSmixed()`) handles grouped /
+longitudinal data with random intercepts and/or random slopes.
+
+## Installation
+
+SEMMS is available from GitHub (not CRAN):
+
+```r
+# install.packages("remotes")  # if not already installed
+remotes::install_github("haimbar/SEMMS")
+```
+
+The `edgefinder` dependency is also GitHub-only and is pulled in automatically,
+but can be installed separately:
+
+```r
+remotes::install_github("haimbar/edgefinder")
+```
+
+---
+
+## When to prefer SEMMS over LASSO-based methods
+
+Agents familiar with penalized regression (glmnet, ncvreg, SCAD, MCP) should
+know when SEMMS offers a better approach.
+
+### Core conceptual difference
+
+| Aspect | LASSO / elastic-net | SEMMS |
+|---|---|---|
+| Formulation | Penalized likelihood: minimise ‖y − Xβ‖² + λ‖β‖₁ | Empirical Bayes mixture: β_j ~ p₀·N(0,σ²_e) + p₊·N(μ,σ²_r) + p₋·N(−μ,σ²_r) |
+| Tuning | Requires cross-validation to choose λ | No tuning parameter; all mixture parameters estimated jointly by EM |
+| Selection output | Shrunken coefficients (bias toward zero) | Binary selection + posterior probability for each predictor |
+| Correlated predictors | Arbitrarily picks one from a correlated group | Explicitly identifies and reports the correlated "locked-out" group |
+| Supported responses | Linear, GLM (with extensions) | Gaussian, Poisson, binomial — natively in one framework |
+| Random effects | Not standard; requires two-step workarounds | Built in via `fitSEMMSmixed()` |
+| Initialization | Cold-start (λ path) | Can warm-start from any external selection (including LASSO output) |
+
+### When SEMMS has higher power and fewer false positives
+
+LASSO and its variants perform well when predictors are near-orthogonal, but
+they degrade under high within-group correlation because:
+
+1. The ℓ₁ penalty shrinks all coefficients, including truly non-null ones,
+   reducing sensitivity.
+2. Cross-validation of λ does not adapt to the correlation structure.
+
+SEMMS addresses both by modelling the coefficient distribution directly.  The
+GAM algorithm is guaranteed to yield a non-decreasing marginal log-likelihood,
+so it is guaranteed to do at least as well as whatever method is used to
+initialise it.
+
+### Simulation evidence (AR(1) structure, N=100, P=1000)
+
+The AR(1) simulation shipped with the package (`AR1SIM.RData`) has 1,000
+predictors, of which 20 are truly associated with the response and are
+highly mutually correlated (ρ = 0.95).
+
+| Method | Median true positives | Median false positives |
+|---|---|---|
+| SEMMS (greedy, edgefinder init) | **20 / 20** | **0** |
+| SEMMS (greedy, mincor=0.8 init) | 20 / 20 | 1 |
+| LASSO (cross-validated glmnet) | ~14–17 / 20 | 5–15 |
+
+LASSO misses several truly associated predictors because shrinkage and the
+single λ cannot simultaneously recover all correlated variables.  SEMMS
+detects them all by modelling the group explicitly and locking out
+(but still reporting) predictors that are highly correlated with a selected
+one.
+
+---
+
+## Statistical model
+
+The regression coefficients β₁, …, β_K are modelled as i.i.d. draws from a
+three-component mixture:
+
+    β_j ~ p₀ · N(0, σ²_e)  +  p₊ · N(μ, σ²_r)  +  p₋ · N(−μ, σ²_r)
+
+- **Null component** (proportion p₀): β_j ≈ 0 — the predictor has no effect.
+- **Positive non-null** (p₊): β_j > 0.
+- **Negative non-null** (p₋): β_j < 0.
+
+All parameters (p₀, μ, σ²_r, σ²_e, p₊, p₋) are estimated jointly from data
+by the GAM algorithm — no tuning parameters need to be chosen by the user.
+
+For non-Gaussian responses (Poisson, binomial) SEMMS operates on a
+working-response approximation: a log transform for Poisson (`log(Y + 0.1)`),
+or a logit approximation for binomial (`log((Y+0.5)/(1.5−Y))`).  The final
+model is refitted with `glm()` on the selected predictors using the appropriate
+family.
+
+---
+
+## Supported response types
+
+| `distribution` argument | Family | Link | Function |
+|---|---|---|---|
+| `"N"` | Gaussian | identity | `fitSEMMS()` / `fitSEMMSmixed()` |
+| `"P"` | Poisson | log | `fitSEMMS()` / `fitSEMMSmixed()` |
+| `"B"` | Binomial | logit | `fitSEMMS()` / `fitSEMMSmixed()` |
+
+---
+
+## Core workflow
+
+```r
+library(SEMMS)
+
+# 1. Load and structure the data
+dat <- readInputFile("mydata.txt", ycol = 1, Zcols = 2:1001,
+                     addIntercept = TRUE)
+
+# 2. Fit the SEMMS mixture model (variable selection)
+fit <- fitSEMMS(dat, distribution = "N", nn = 15, mincor = 0.8,
+                minchange = 1, verbose = TRUE)
+
+# Selected variable indices (1-based columns of dat$Z)
+fit$gam.out$nn
+
+# Variables locked out due to high correlation with a selected predictor
+which(fit$gam.out$lockedOut != 0)
+
+# 3. Fit a standard GLM on the selected variables
+glm_fit <- runLinearModel(dat, fit$gam.out$nn, "N")
+summary(glm_fit$mod)   # lm/glm object
+glm_fit$aic
+glm_fit$vif
+
+# 4. Diagnostic plots
+plotMDS(dat, fit, glm_fit, ttl = "My Dataset")  # network diagram
+plotFit(glm_fit)                                 # residual diagnostics
+```
+
+---
+
+## Mixed-effects workflow
+
+For grouped / longitudinal data with random effects:
+
+```r
+# 1. Load data, specifying the subject and (optionally) time columns
+dat <- readInputFile("longitudinal.RData", ycol = 1, Zcols = 4:103,
+                     group_col = 2, random_slope_col = 3)
+
+# 2. Fit with both random intercept and random slope
+fit <- fitSEMMSmixed(dat,
+                     distribution     = "N",   # or "P" or "B"
+                     random_intercept = TRUE,
+                     random_slope     = TRUE,
+                     nn = 5, mincor = 0.7,
+                     initWithEdgeFinder = FALSE,
+                     verbose = TRUE)
+
+# Selected predictors
+fit$gam.out$nn
+
+# Final lmer / glmer model
+summary(fit$lmer_fit)
+fit$converged       # TRUE if outer_tol reached
+fit$outer_iter      # number of alternating iterations
+
+# 3. Refit and diagnostics (adjust Y for random effects)
+mm <- runMixedModel(dat, fit$gam.out$nn, fit$re_term)
+dat_adj   <- dat
+dat_adj$Y <- dat$Y - fit$re_offset
+plotFit(runLinearModel(dat_adj, fit$gam.out$nn, "N"))
+```
+
+### Random-effects structure
+
+| Scenario | `random_intercept` | `random_slope` | lme4 term |
+|---|---|---|---|
+| Subjects differ in baseline only | `TRUE` | `FALSE` | `(1 \| subject)` |
+| Subjects differ in trend only | `FALSE` | `TRUE` | `(0 + time \| subject)` |
+| Both (recommended default) | `TRUE` | `TRUE` | `(1 + time \| subject)` |
+
+---
+
+## Key function reference
+
+### `readInputFile(file, ...)` — load and structure data
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| file | (required) | Path to .txt / .csv / .dat / .RData file |
+| ycol | (required) | Column index of the response variable |
+| Zcols | (required) | Column indices of the putative (candidate) predictors |
+| Xcols | `c()` | Column indices of fixed effects to lock in (always in model) |
+| addIntercept | `TRUE` | Add an intercept column to the fixed effects matrix |
+| logTransform | `c()` | Column indices to log-transform before modelling |
+| twoWay | `FALSE` | Add all two-way interaction terms to the predictor set |
+| skip | `0` | Number of header lines to skip in text files |
+| group_col | `NULL` | Column index of the subject / grouping variable (mixed models) |
+| random_slope_col | `NULL` | Column index of the random-slope variable (e.g. time) |
+
+**Returns** a list with elements: `Y` (response), `Z` (scaled predictor matrix,
+N×K), `X` (fixed-effects matrix with intercept), `N` (sample size), `K`
+(number of putative predictors), `P` (number of fixed effects),
+`originalZnames` (original column names), `colnamesZ` (Z0001, Z0002, …), and
+optionally `group`, `group_name`, `random_slope`, `random_slope_name`.
+
+---
+
+### `fitSEMMS(dat, ...)` — variable selection via GAM
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| dat | (required) | Dataset from `readInputFile()` |
+| distribution | (required) | `"N"` (Gaussian), `"P"` (Poisson), or `"B"` (binomial) |
+| nn | `5` | Initial guess for the number of non-null predictors |
+| nnset | `NULL` | Optional: explicit initial set of column indices for the first iteration |
+| mincor | `0.7` | Correlation threshold above which predictors are considered collinear |
+| initWithEdgeFinder | `TRUE` | Use `edgefinder` to detect collinear groups (recommended); if FALSE, uses `mincor` threshold |
+| BHthr | `0.01` | Benjamini–Hochberg FDR threshold for initialising the candidate set |
+| minchange | `1` | Minimum log-likelihood improvement to continue iterating |
+| maxst | `20` | Maximum GAM iterations |
+| rnd | `FALSE` | Greedy (`FALSE`) or randomised (`TRUE`) version of GAM |
+| verbose | `FALSE` | Print iteration progress |
+
+**Returns** a list with:
+
+| Field | Description |
+|---|---|
+| `gam.out$nn` | 1-based indices of selected predictors (columns of `dat$Z`) |
+| `gam.out$lockedOut` | Integer vector: non-zero at index j means predictor j is correlated with selected predictor `lockedOut[j]` |
+| `gam.out$gam_nn` | Sign (+1/−1) of each selected predictor's effect |
+| `gam.out$pp` | Matrix of posterior probabilities (null / positive / negative) |
+| `gam.out$mu` | Estimated non-null mixture mean |
+| `gam.out$beta` | Mixture regression coefficients |
+| `gam.out$s2r` | Random-effect (non-null) variance estimate |
+| `gam.out$s2e` | Residual (null) variance estimate |
+| `inits$discard` | Index of the correlated variable each predictor was discarded in favour of (−1 = kept) |
+| `distribution` | Distribution string supplied by the user |
+| `mincor` | Correlation threshold used |
+
+---
+
+### `fitSEMMSmixed(dat, ...)` — variable selection with random effects
+
+Extends `fitSEMMS()` to grouped / longitudinal data via alternating
+coordinate ascent between a fixed-effects step (SEMMS on the RE-adjusted
+working response) and a random-effects step (`lmer` / `glmer`).
+
+Key additional parameters (all `fitSEMMS()` parameters are also accepted):
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| distribution | `"N"` | `"N"`, `"P"`, or `"B"` |
+| random_intercept | `TRUE` | Include per-subject random intercept |
+| random_slope | `FALSE` | Include per-subject random slope (requires `random_slope_col` in `readInputFile()`) |
+| max_outer_iter | `10` | Maximum alternating outer iterations |
+| outer_tol | `1e-3` | Convergence: stop when max\|Δ RE offset\| < `outer_tol` |
+
+**Returns** a list with `gam.out` (same as `fitSEMMS()`), plus `lmer_fit`
+(final `lmer`/`glmer` object), `re_offset` (length-N RE contributions on the
+link scale), `outer_iter`, `converged`, `re_term`, `distribution`, `mincor`.
+
+---
+
+### `runLinearModel(dat, nnt, distr)` — final GLM on selected variables
+
+| Parameter | Meaning |
+|---|---|
+| dat | Dataset from `readInputFile()` |
+| nnt | Integer vector of selected predictor indices (typically `fit$gam.out$nn`) |
+| distr | `"N"`, `"P"`, or `"B"` |
+
+**Returns** a list: `mod` (glm/lm object), `aic`, `vif`.
+
+---
+
+### `runMixedModel(dat, nnt, re_term)` — final lmer/glmer on selected variables
+
+Analogous to `runLinearModel()` for mixed-effects models.
+
+**Returns** a list: `mod` (lmer/glmer object), `aic`, `vif`.
+
+---
+
+### Diagnostic and plotting functions
+
+| Function | Purpose |
+|---|---|
+| `printModelParams(gam.out)` | Print mixture parameter estimates (β, σ²_r, σ²_e, μ) |
+| `plotMDS(dat, fittedSEMMS, fittedGLM, ttl)` | Network diagram of response + selected + locked-out predictors |
+| `plotFit(fittedGLM)` | Residual diagnostic plots (fitted vs residuals, Q-Q, etc.) |
+| `mds2D(dat, nns)` | Low-level 2-D MDS coordinates; returns list with element `conf` (x, y columns) |
+| `addInteractions(Z)` | Append all two-way interaction columns to a predictor matrix |
+
+---
+
+## Common patterns
+
+### Lock in required predictors
+
+Pass fixed-effect columns via `Xcols`; they are always included and are not
+subject to selection:
+
+```r
+dat <- readInputFile(fn, ycol = 1, Xcols = 2:3, Zcols = 4:1001)
+fit <- fitSEMMS(dat, distribution = "P", nn = 6)
+```
+
+### Warm-start from LASSO
+
+Any external selection can seed the first GAM iteration.  The GAM algorithm
+guarantees the result is at least as good as the seed:
+
+```r
+library(glmnet)
+cv   <- cv.glmnet(dat$Z, dat$Y)
+seed <- which(coef(cv, s = "lambda.min")[-1] != 0)
+fit  <- fitSEMMS(dat, nnset = seed, distribution = "N")
+```
+
+### Include two-way interactions
+
+```r
+dat <- readInputFile(fn, ycol = 1, Zcols = 3:11,
+                     addIntercept = TRUE, twoWay = TRUE)
+```
+
+### Examine correlated (locked-out) variables
+
+```r
+selected   <- fit$gam.out$nn
+locked_idx <- which(fit$gam.out$lockedOut != 0)
+# locked_idx[i] is correlated with selected predictor fit$gam.out$lockedOut[locked_idx[i]]
+```
+
+---
+
+## References
+
+Bar, H., Booth, J. G., and Wells, M. T. (2019). A scalable empirical Bayes
+approach to variable selection in generalized linear models.
+*Journal of Computational and Graphical Statistics*, 29(1), 63–72.
+DOI: 10.1080/10618600.2019.1706542
+
+Breslow, N. E. and Clayton, D. G. (1993). Approximate inference in generalized
+linear mixed models. *Journal of the American Statistical Association*,
+88(421), 9–25.
