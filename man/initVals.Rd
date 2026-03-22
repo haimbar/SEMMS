@@ -14,7 +14,10 @@ initVals(Z, Yr, mincor = 0.7)
 \item{mincor}{a threshold of (absolute) correlation above which a pair is considered highly correlated}
 }
 \value{
-a list containing  variables to ignore because they are highly correlated with other, and SLR coefficients
+a list with elements: \code{discard} (integer vector; for each
+  variable, the index of the variable it is correlated with and therefore
+  discarded in favour of, or -1 if kept) and \code{beta} (numeric vector of
+  simple linear regression coefficients, one per column of Z).
 }
 \description{
 Get an initial set of putative variables for the GAM algorithm

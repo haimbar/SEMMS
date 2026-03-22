@@ -42,7 +42,14 @@ GAMupdate(
 \item{ptf}{Boolean - whether to print debug messages to SEMMS.log}
 }
 \value{
-a list containing the index of non-null variables (columns in Z), the mixture model parameters, the sign of the selected coefficients, a matrix with posterior probabilities, and an indicator array for locked out variables
+a list with elements: \code{nn} (1-based integer indices of selected
+  non-null variables), \code{mu} (mixture mean), \code{beta} (mixture
+  regression coefficients), \code{s2r} (random-effect variance), \code{s2e}
+  (residual variance), \code{gam_nn} (sign, +/-1, of the effect of each
+  selected variable), \code{pp} (matrix of posterior probabilities), and
+  \code{lockedOut} (integer vector indicating variables excluded because they
+  are highly correlated with a selected variable; non-zero value = index of
+  the selected variable they are correlated with).
 }
 \description{
 Run the GAM algorithm to select non-null variables

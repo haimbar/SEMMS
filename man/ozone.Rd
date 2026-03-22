@@ -8,7 +8,7 @@
 A text file with the ozone data. The data starts on line 20.
 }
 \description{
-The air-pollution data set analyzed in this case study was first introduced in (Breiman and Friedman 1985). It consists of daily measurements of ozone concentration levels in the Los Angeles basin, collected over 330 days in 1976. There are eight meteorological explanatory variables, plut the day of the year. Note that the response (column 2) has to be log transformed. The predictos appear in columns 3-11. We add an intercept, and construct the two-way interaction terms in the example below.
+The air-pollution data set analyzed in this case study was first introduced in (Breiman and Friedman 1985). It consists of daily measurements of ozone concentration levels in the Los Angeles basin, collected over 330 days in 1976. There are eight meteorological explanatory variables, plus the day of the year. Note that the response (column 2) has to be log transformed. The predictors appear in columns 3-11. We add an intercept, and construct the two-way interaction terms in the example below.
 }
 \examples{
  \dontrun{
