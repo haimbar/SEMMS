@@ -73,7 +73,6 @@ fn <- system.file("extdata", "ozone.txt", package = "SEMMS", mustWork = TRUE)
 dataYXZ <- readInputFile(fn, ycol=2, skip=19, Zcols=3:11,
    addIntercept = TRUE, logTransform = 2, twoWay = TRUE)
 nn <- 20    # initial guess for the number of non-nulls
-distribution <- "gaussian"
 rnd <- F
 fittedSEMMS <- fitSEMMS(dataYXZ, mincor=0.75, nn=nn, minchange=1, initWithEdgeFinder=F,
                         distribution="N",verbose=T,rnd=rnd)

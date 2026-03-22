@@ -12,7 +12,10 @@ using namespace arma;
 //' @param Z matrix of putative variables
 //' @param Yr the (possibly transformed) response
 //' @param mincor a threshold of (absolute) correlation above which a pair is considered highly correlated
-//' @return a list containing  variables to ignore because they are highly correlated with other, and SLR coefficients
+//' @return a list with elements: \code{discard} (integer vector; for each
+//'   variable, the index of the variable it is correlated with and therefore
+//'   discarded in favour of, or -1 if kept) and \code{beta} (numeric vector of
+//'   simple linear regression coefficients, one per column of Z).
 // [[Rcpp::export]]
 List initVals(NumericMatrix Z, arma::colvec Yr, double mincor=0.7) {
   int K = Z.ncol(), n = Z.nrow();
@@ -299,7 +302,14 @@ List fit_gam(arma::colvec Yw, arma::mat X, NumericMatrix Z,
 //' @param maxsteps maximum number of GAM iterations
 //' @param minchange the minimum difference in log-likelihood between consecutive iterations below which we assume that the algorithm has converged
 //' @param ptf Boolean - whether to print debug messages to SEMMS.log
-//' @return a list containing the index of non-null variables (columns in Z), the mixture model parameters, the sign of the selected coefficients, a matrix with posterior probabilities, and an indicator array for locked out variables
+//' @return a list with elements: \code{nn} (1-based integer indices of selected
+//'   non-null variables), \code{mu} (mixture mean), \code{beta} (mixture
+//'   regression coefficients), \code{s2r} (random-effect variance), \code{s2e}
+//'   (residual variance), \code{gam_nn} (sign, +/-1, of the effect of each
+//'   selected variable), \code{pp} (matrix of posterior probabilities), and
+//'   \code{lockedOut} (integer vector indicating variables excluded because they
+//'   are highly correlated with a selected variable; non-zero value = index of
+//'   the selected variable they are correlated with).
 // [[Rcpp::export]]
 List GAMupdate(IntegerVector initidx, IntegerVector initval, arma::colvec Yr, NumericMatrix Xr,
                NumericMatrix Z, char distr = 'N', bool randomize=true, double mincor=0.7,
